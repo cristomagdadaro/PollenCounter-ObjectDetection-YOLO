@@ -1,0 +1,22 @@
+# ──────────────────────────────────────────────────────────────────────
+# Pollen Dataset Configuration — YOLOv26
+# ──────────────────────────────────────────────────────────────────────
+# This file tells Ultralytics where your annotated images and labels
+# live.  Export your CVAT / Roboflow annotations in "YOLO" format and
+# place the files under the paths listed below.
+#
+# Label format (one .txt per image, same base-name):
+#   <class_id> <x_center> <y_center> <width> <height>
+#   All values are normalised to [0, 1].
+# ──────────────────────────────────────────────────────────────────────
+
+# Paths are relative to THIS file's parent directory.
+path: ../datasets          # dataset root
+train: images/train        # training images  (relative to 'path')
+val: images/val            # validation images (relative to 'path')
+
+# ── Classes ──────────────────────────────────────────────────────────
+# Single-class detection.  Add more entries if you need species-level
+# differentiation (e.g., 1: oak_pollen, 2: grass_pollen).
+names:
+  0: pollen

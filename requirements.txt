@@ -1,0 +1,8 @@
+# PollenCounter-ObjectDetection-YOLO
+# Python 3.10+ | YOLOv26 (yolo26n.pt)
+#
+# Core dependencies — torch/torchvision pulled transitively by ultralytics.
+ultralytics>=8.4
+opencv-python>=4.8
+pandas>=2.0
+openpyxl>=3.1
