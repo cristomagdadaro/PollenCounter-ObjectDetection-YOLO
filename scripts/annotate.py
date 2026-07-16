@@ -127,8 +127,10 @@ class AnnotationApp:
 
         # ── Image display state ─────────────────────────────────────
         self.display_scale = 1.0
+        self.zoom_level = 1.0
         self.orig_w = 0
         self.orig_h = 0
+        self.pil_img: Optional[Image.Image] = None
         self.tk_image: Optional[ImageTk.PhotoImage] = None
 
         # ── Build UI ────────────────────────────────────────────────
@@ -171,7 +173,13 @@ class AnnotationApp:
             canvas_frame, bg="#111111", cursor="crosshair",
             highlightthickness=0
         )
-        self.canvas.pack(fill=tk.BOTH, expand=True)
+        self.vbar = ttk.Scrollbar(canvas_frame, orient=tk.VERTICAL, command=self.canvas.yview)
+        self.hbar = ttk.Scrollbar(canvas_frame, orient=tk.HORIZONTAL, command=self.canvas.xview)
+        self.canvas.configure(yscrollcommand=self.vbar.set, xscrollcommand=self.hbar.set)
+
+        self.hbar.pack(side=tk.BOTTOM, fill=tk.X)
+        self.vbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         # Sidebar
         sidebar = tk.Frame(main, bg=SIDEBAR_BG, width=260)
@@ -211,6 +219,7 @@ class AnnotationApp:
             ("🖱 Drag", "Draw box"),
             ("Right-click", "Delete box"),
             ("← →  or  A/D", "Prev / Next"),
+            ("Scroll or + / -", "Zoom In / Out"),
             ("Ctrl+Z", "Undo last box"),
             ("Ctrl+S", "Save labels"),
         ]
@@ -276,6 +285,10 @@ class AnnotationApp:
         self.root.bind("d", lambda e: self._next_image())
         self.root.bind("<Control-z>", lambda e: self._undo())
         self.root.bind("<Control-s>", lambda e: self._save_labels())
+        self.root.bind("<MouseWheel>", self._on_mousewheel)
+        self.root.bind("<plus>", lambda e: self._zoom_in())
+        self.root.bind("<equal>", lambda e: self._zoom_in())
+        self.root.bind("<minus>", lambda e: self._zoom_out())
 
     # ════════════════════════════════════════════════════════════════
     #  IMAGE LOADING
@@ -286,33 +299,9 @@ class AnnotationApp:
         path = self.image_paths[self.current_idx]
 
         # Load with PIL
-        pil_img = Image.open(path)
-        self.orig_w, self.orig_h = pil_img.size
-
-        # Calculate scale to fit canvas
-        canvas_w = max(self.canvas.winfo_width(), 400)
-        canvas_h = max(self.canvas.winfo_height(), 400)
-        scale_w = canvas_w / self.orig_w
-        scale_h = canvas_h / self.orig_h
-        self.display_scale = min(scale_w, scale_h, 1.0)
-
-        disp_w = int(self.orig_w * self.display_scale)
-        disp_h = int(self.orig_h * self.display_scale)
-
-        resized = pil_img.resize((disp_w, disp_h), Image.LANCZOS)
-        self.tk_image = ImageTk.PhotoImage(resized)
-
-        # ── Draw image centered on canvas ───────────────────────────
-        self.canvas.delete("all")
-        self.canvas_ids.clear()
-
-        self.img_offset_x = (canvas_w - disp_w) // 2
-        self.img_offset_y = (canvas_h - disp_h) // 2
-
-        self.canvas.create_image(
-            self.img_offset_x, self.img_offset_y,
-            anchor=tk.NW, image=self.tk_image, tags="image"
-        )
+        self.pil_img = Image.open(path)
+        self.orig_w, self.orig_h = self.pil_img.size
+        self.zoom_level = 1.0
 
         # ── Load existing labels ────────────────────────────────────
         self.boxes.clear()
@@ -324,8 +313,58 @@ class AnnotationApp:
                     if box:
                         self.boxes.append(box)
 
-        self._redraw_boxes()
+        self._render_image()
         self._update_ui()
+        
+    def _render_image(self):
+        """Scale and display the image on the canvas."""
+        if not self.pil_img:
+            return
+
+        self.canvas.delete("all")
+        self.canvas_ids.clear()
+
+        # Calculate scale to fit canvas
+        canvas_w = max(self.canvas.winfo_width(), 400)
+        canvas_h = max(self.canvas.winfo_height(), 400)
+        scale_w = canvas_w / self.orig_w
+        scale_h = canvas_h / self.orig_h
+        base_scale = min(scale_w, scale_h, 1.0)
+        self.display_scale = base_scale * self.zoom_level
+
+        disp_w = int(self.orig_w * self.display_scale)
+        disp_h = int(self.orig_h * self.display_scale)
+
+        resized = self.pil_img.resize((disp_w, disp_h), Image.LANCZOS)
+        self.tk_image = ImageTk.PhotoImage(resized)
+
+        self.img_offset_x = max((canvas_w - disp_w) // 2, 0)
+        self.img_offset_y = max((canvas_h - disp_h) // 2, 0)
+
+        # Update scrollregion
+        scroll_w = max(disp_w, canvas_w)
+        scroll_h = max(disp_h, canvas_h)
+        self.canvas.config(scrollregion=(0, 0, scroll_w, scroll_h))
+
+        self.canvas.create_image(
+            self.img_offset_x, self.img_offset_y,
+            anchor=tk.NW, image=self.tk_image, tags="image"
+        )
+        self._redraw_boxes()
+
+    def _zoom_in(self):
+        self.zoom_level = min(self.zoom_level * 1.25, 10.0)
+        self._render_image()
+
+    def _zoom_out(self):
+        self.zoom_level = max(self.zoom_level / 1.25, 0.2)
+        self._render_image()
+
+    def _on_mousewheel(self, event):
+        if event.delta > 0:
+            self._zoom_in()
+        else:
+            self._zoom_out()
 
     def _label_path(self) -> Path:
         """Get the label file path for the current image."""
@@ -335,13 +374,13 @@ class AnnotationApp:
     def _on_canvas_resize(self, event):
         """Re-render when canvas is resized."""
         if self.image_paths:
-            self._load_image()
+            self._render_image()
 
     # ════════════════════════════════════════════════════════════════
     #  COORDINATE TRANSFORMS
     # ════════════════════════════════════════════════════════════════
 
-    def _canvas_to_norm(self, cx: int, cy: int) -> tuple[float, float]:
+    def _canvas_to_norm(self, cx: float, cy: float) -> tuple[float, float]:
         """Canvas pixel → normalised image coordinates."""
         ix = (cx - self.img_offset_x) / self.display_scale
         iy = (cy - self.img_offset_y) / self.display_scale
@@ -359,16 +398,18 @@ class AnnotationApp:
 
     def _on_press(self, event):
         self.drawing = True
-        self.start_x = event.x
-        self.start_y = event.y
+        self.start_x = self.canvas.canvasx(event.x)
+        self.start_y = self.canvas.canvasy(event.y)
         self.temp_rect = self.canvas.create_rectangle(
-            event.x, event.y, event.x, event.y,
+            self.start_x, self.start_y, self.start_x, self.start_y,
             outline=ACTIVE_BOX_COLOR, width=2, dash=(4, 4)
         )
 
     def _on_drag(self, event):
         if self.drawing and self.temp_rect:
-            self.canvas.coords(self.temp_rect, self.start_x, self.start_y, event.x, event.y)
+            cx = self.canvas.canvasx(event.x)
+            cy = self.canvas.canvasy(event.y)
+            self.canvas.coords(self.temp_rect, self.start_x, self.start_y, cx, cy)
 
     def _on_release(self, event):
         if not self.drawing:
@@ -381,7 +422,8 @@ class AnnotationApp:
 
         # ── Compute box in normalised coords ────────────────────────
         x1, y1 = self.start_x, self.start_y
-        x2, y2 = event.x, event.y
+        x2 = self.canvas.canvasx(event.x)
+        y2 = self.canvas.canvasy(event.y)
 
         # Reject tiny boxes (accidental clicks)
         if abs(x2 - x1) < 5 or abs(y2 - y1) < 5:
@@ -419,7 +461,9 @@ class AnnotationApp:
             return
 
         # Find which box the click is inside
-        click_nx, click_ny = self._canvas_to_norm(event.x, event.y)
+        cx = self.canvas.canvasx(event.x)
+        cy = self.canvas.canvasy(event.y)
+        click_nx, click_ny = self._canvas_to_norm(cx, cy)
 
         for i, box in reversed(list(enumerate(self.boxes))):
             half_w = box.w / 2
