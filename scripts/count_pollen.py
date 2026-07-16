@@ -195,6 +195,29 @@ def run_inference(
                     cv2.circle(annotated_img, (cx, cy), radius=6, color=color, thickness=-1)
                     cv2.circle(annotated_img, (cx, cy), radius=6, color=(255, 255, 255), thickness=1)
 
+            # Draw the count text with 50% opacity at the center
+            overlay = annotated_img.copy()
+            text = str(n_detections)
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            
+            # In OpenCV, a font_scale of 1.0 is ~22 pixels high.
+            # For ~30px font, scale = 30 / 22 = 1.36
+            font_scale = 1.36
+            thickness = 3
+            
+            # Get text size to center it perfectly
+            (text_w, text_h), baseline = cv2.getTextSize(text, font, font_scale, thickness)
+            text_x = (img_w - text_w) // 2
+            text_y = (img_h + text_h) // 2
+            
+            # Draw on overlay (black outline for visibility, then white text)
+            cv2.putText(overlay, text, (text_x, text_y), font, font_scale, (0, 0, 0), thickness + 2, cv2.LINE_AA)
+            cv2.putText(overlay, text, (text_x, text_y), font, font_scale, (255, 255, 255), thickness, cv2.LINE_AA)
+            
+            # Blend with 50% opacity
+            alpha = 0.5
+            cv2.addWeighted(overlay, alpha, annotated_img, 1 - alpha, 0, annotated_img)
+
             out_path = annotated_dir / img_path.name
             cv2.imwrite(str(out_path), annotated_img)
 

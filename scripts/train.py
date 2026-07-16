@@ -224,6 +224,17 @@ def main() -> None:
     print(f"  Best weights saved to: {best_weights}")
     print("=" * 60)
 
+    # ── Validation ──────────────────────────────────────────────────
+    print("\n[INFO] Running data validation on the best weights...")
+    val_model = YOLO(str(best_weights))
+    metrics = val_model.val(data=str(data_path), split="val", device=args.device)
+    
+    print("\n" + "=" * 60)
+    print("  Validation complete!")
+    if hasattr(metrics, 'box'):
+        print(f"  Final mAP50: {metrics.box.map50:.4f}")
+    print("=" * 60)
+
 
 if __name__ == "__main__":
     main()
