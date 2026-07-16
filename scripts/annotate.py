@@ -1,0 +1,602 @@
+#!/usr/bin/env python3
+"""
+annotate.py — Pollen Grain Bounding Box Annotation Tool
+=========================================================
+
+A local tkinter GUI for drawing bounding boxes on pollen microscopy
+images and saving the annotations in YOLO format.
+
+Features:
+  • Click-and-drag to draw bounding boxes
+  • Right-click a box to delete it
+  • Navigate between images with Next/Previous or keyboard arrows
+  • Auto-saves YOLO .txt label files to datasets/labels/train/
+  • Shows box count and annotation progress
+  • Supports splitting images into train/val sets
+
+Usage:
+    python scripts/annotate.py
+    python scripts/annotate.py --images datasets/images/train --labels datasets/labels/train
+"""
+
+from __future__ import annotations
+
+import argparse
+import shutil
+import sys
+import tkinter as tk
+from pathlib import Path
+from tkinter import messagebox, ttk
+from typing import Optional
+
+from PIL import Image, ImageTk
+
+# ─── Project paths ──────────────────────────────────────────────────
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_IMAGES = PROJECT_ROOT / "datasets" / "images" / "train"
+DEFAULT_LABELS = PROJECT_ROOT / "datasets" / "labels" / "train"
+VAL_IMAGES = PROJECT_ROOT / "datasets" / "images" / "val"
+VAL_LABELS = PROJECT_ROOT / "datasets" / "labels" / "val"
+
+IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".webp"}
+
+# ─── Colours ────────────────────────────────────────────────────────
+BOX_COLOR = "#00FF88"
+BOX_COLOR_HOVER = "#FF4444"
+ACTIVE_BOX_COLOR = "#FFAA00"
+BG_COLOR = "#1E1E2E"
+SIDEBAR_BG = "#2A2A3C"
+ACCENT = "#7C3AED"
+TEXT_COLOR = "#E0E0E0"
+PROGRESS_DONE = "#00FF88"
+PROGRESS_TODO = "#444466"
+
+
+class BoundingBox:
+    """Represents a single YOLO-format bounding box."""
+
+    def __init__(self, x_center: float, y_center: float, w: float, h: float, class_id: int = 0):
+        self.x_center = x_center
+        self.y_center = y_center
+        self.w = w
+        self.h = h
+        self.class_id = class_id
+
+    def to_yolo_line(self) -> str:
+        return f"{self.class_id} {self.x_center:.6f} {self.y_center:.6f} {self.w:.6f} {self.h:.6f}"
+
+    @classmethod
+    def from_yolo_line(cls, line: str) -> Optional["BoundingBox"]:
+        parts = line.strip().split()
+        if len(parts) != 5:
+            return None
+        try:
+            cid, xc, yc, w, h = int(parts[0]), float(parts[1]), float(parts[2]), float(parts[3]), float(parts[4])
+            return cls(xc, yc, w, h, cid)
+        except ValueError:
+            return None
+
+    def to_pixel(self, img_w: int, img_h: int) -> tuple[int, int, int, int]:
+        """Convert normalised coords to pixel (x1, y1, x2, y2)."""
+        px = self.x_center * img_w
+        py = self.y_center * img_h
+        pw = self.w * img_w
+        ph = self.h * img_h
+        return (
+            int(px - pw / 2),
+            int(py - ph / 2),
+            int(px + pw / 2),
+            int(py + ph / 2),
+        )
+
+
+class AnnotationApp:
+    """Main tkinter annotation application."""
+
+    # Maximum canvas display size
+    MAX_CANVAS_W = 960
+    MAX_CANVAS_H = 720
+
+    def __init__(self, root: tk.Tk, images_dir: Path, labels_dir: Path):
+        self.root = root
+        self.images_dir = images_dir
+        self.labels_dir = labels_dir
+        self.labels_dir.mkdir(parents=True, exist_ok=True)
+
+        # Ensure val dirs exist
+        VAL_IMAGES.mkdir(parents=True, exist_ok=True)
+        VAL_LABELS.mkdir(parents=True, exist_ok=True)
+
+        # ── Image list ──────────────────────────────────────────────
+        self.image_paths: list[Path] = sorted(
+            p for p in self.images_dir.iterdir() if p.suffix.lower() in IMAGE_EXTS
+        )
+        if not self.image_paths:
+            messagebox.showerror("No Images", f"No images found in:\n{self.images_dir}")
+            sys.exit(1)
+
+        self.current_idx = 0
+        self.boxes: list[BoundingBox] = []
+        self.canvas_ids: list[int] = []  # canvas rectangle IDs
+
+        # ── Drawing state ───────────────────────────────────────────
+        self.drawing = False
+        self.start_x = 0
+        self.start_y = 0
+        self.temp_rect: Optional[int] = None
+
+        # ── Image display state ─────────────────────────────────────
+        self.display_scale = 1.0
+        self.orig_w = 0
+        self.orig_h = 0
+        self.tk_image: Optional[ImageTk.PhotoImage] = None
+
+        # ── Build UI ────────────────────────────────────────────────
+        self._build_ui()
+        self._load_image()
+
+    # ════════════════════════════════════════════════════════════════
+    #  UI CONSTRUCTION
+    # ════════════════════════════════════════════════════════════════
+
+    def _build_ui(self):
+        self.root.title("🔬 Pollen Annotator — YOLOv26")
+        self.root.configure(bg=BG_COLOR)
+        self.root.minsize(1100, 700)
+
+        # ── Top bar ─────────────────────────────────────────────────
+        top = tk.Frame(self.root, bg=ACCENT, height=48)
+        top.pack(fill=tk.X)
+        top.pack_propagate(False)
+
+        tk.Label(
+            top, text="🔬  Pollen Grain Annotator", font=("Segoe UI", 14, "bold"),
+            bg=ACCENT, fg="white"
+        ).pack(side=tk.LEFT, padx=16)
+
+        self.progress_label = tk.Label(
+            top, text="", font=("Segoe UI", 11), bg=ACCENT, fg="#DDD"
+        )
+        self.progress_label.pack(side=tk.RIGHT, padx=16)
+
+        # ── Main area (canvas + sidebar) ────────────────────────────
+        main = tk.Frame(self.root, bg=BG_COLOR)
+        main.pack(fill=tk.BOTH, expand=True)
+
+        # Canvas
+        canvas_frame = tk.Frame(main, bg="#000000", bd=2, relief=tk.SUNKEN)
+        canvas_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(8, 4), pady=8)
+
+        self.canvas = tk.Canvas(
+            canvas_frame, bg="#111111", cursor="crosshair",
+            highlightthickness=0
+        )
+        self.canvas.pack(fill=tk.BOTH, expand=True)
+
+        # Sidebar
+        sidebar = tk.Frame(main, bg=SIDEBAR_BG, width=260)
+        sidebar.pack(side=tk.RIGHT, fill=tk.Y, padx=(4, 8), pady=8)
+        sidebar.pack_propagate(False)
+
+        # ── Sidebar: file info ──────────────────────────────────────
+        tk.Label(
+            sidebar, text="Current Image", font=("Segoe UI", 11, "bold"),
+            bg=SIDEBAR_BG, fg=ACCENT
+        ).pack(anchor=tk.W, padx=12, pady=(16, 2))
+
+        self.file_label = tk.Label(
+            sidebar, text="", font=("Consolas", 10), bg=SIDEBAR_BG, fg=TEXT_COLOR,
+            wraplength=230, justify=tk.LEFT
+        )
+        self.file_label.pack(anchor=tk.W, padx=12)
+
+        self.size_label = tk.Label(
+            sidebar, text="", font=("Consolas", 9), bg=SIDEBAR_BG, fg="#888"
+        )
+        self.size_label.pack(anchor=tk.W, padx=12, pady=(0, 8))
+
+        # ── Sidebar: box count ──────────────────────────────────────
+        tk.Frame(sidebar, bg="#444466", height=1).pack(fill=tk.X, padx=12, pady=4)
+
+        self.count_label = tk.Label(
+            sidebar, text="Boxes: 0", font=("Segoe UI", 20, "bold"),
+            bg=SIDEBAR_BG, fg=BOX_COLOR
+        )
+        self.count_label.pack(pady=12)
+
+        # ── Sidebar: instructions ───────────────────────────────────
+        tk.Frame(sidebar, bg="#444466", height=1).pack(fill=tk.X, padx=12, pady=4)
+
+        instructions = [
+            ("🖱 Drag", "Draw box"),
+            ("Right-click", "Delete box"),
+            ("← →  or  A/D", "Prev / Next"),
+            ("Ctrl+Z", "Undo last box"),
+            ("Ctrl+S", "Save labels"),
+        ]
+        tk.Label(
+            sidebar, text="Controls", font=("Segoe UI", 11, "bold"),
+            bg=SIDEBAR_BG, fg=ACCENT
+        ).pack(anchor=tk.W, padx=12, pady=(8, 4))
+
+        for key, action in instructions:
+            row = tk.Frame(sidebar, bg=SIDEBAR_BG)
+            row.pack(anchor=tk.W, padx=12, pady=1)
+            tk.Label(row, text=key, font=("Consolas", 9, "bold"), bg=SIDEBAR_BG, fg="#AAA", width=14, anchor=tk.W).pack(side=tk.LEFT)
+            tk.Label(row, text=action, font=("Segoe UI", 9), bg=SIDEBAR_BG, fg=TEXT_COLOR).pack(side=tk.LEFT)
+
+        # ── Sidebar: buttons ────────────────────────────────────────
+        tk.Frame(sidebar, bg="#444466", height=1).pack(fill=tk.X, padx=12, pady=12)
+
+        btn_style = {"font": ("Segoe UI", 10, "bold"), "width": 22, "cursor": "hand2", "bd": 0, "pady": 6}
+
+        self.prev_btn = tk.Button(
+            sidebar, text="◀  Previous", bg="#3A3A5C", fg="white",
+            activebackground="#4A4A6C", command=self._prev_image, **btn_style
+        )
+        self.prev_btn.pack(pady=2)
+
+        self.next_btn = tk.Button(
+            sidebar, text="Next  ▶", bg=ACCENT, fg="white",
+            activebackground="#6D28D9", command=self._next_image, **btn_style
+        )
+        self.next_btn.pack(pady=2)
+
+        tk.Frame(sidebar, bg="#444466", height=1).pack(fill=tk.X, padx=12, pady=8)
+
+        self.clear_btn = tk.Button(
+            sidebar, text="🗑  Clear All Boxes", bg="#DC2626", fg="white",
+            activebackground="#B91C1C", command=self._clear_boxes, **btn_style
+        )
+        self.clear_btn.pack(pady=2)
+
+        self.val_btn = tk.Button(
+            sidebar, text="📦  Move to Validation", bg="#2563EB", fg="white",
+            activebackground="#1D4ED8", command=self._move_to_val, **btn_style
+        )
+        self.val_btn.pack(pady=2)
+
+        # ── Status bar ──────────────────────────────────────────────
+        self.status = tk.Label(
+            self.root, text="Ready", font=("Segoe UI", 9),
+            bg="#16161E", fg="#888", anchor=tk.W, padx=8
+        )
+        self.status.pack(fill=tk.X, side=tk.BOTTOM)
+
+        # ── Bind events ────────────────────────────────────────────
+        self.canvas.bind("<ButtonPress-1>", self._on_press)
+        self.canvas.bind("<B1-Motion>", self._on_drag)
+        self.canvas.bind("<ButtonRelease-1>", self._on_release)
+        self.canvas.bind("<ButtonPress-3>", self._on_right_click)
+        self.canvas.bind("<Configure>", self._on_canvas_resize)
+
+        self.root.bind("<Left>", lambda e: self._prev_image())
+        self.root.bind("<Right>", lambda e: self._next_image())
+        self.root.bind("a", lambda e: self._prev_image())
+        self.root.bind("d", lambda e: self._next_image())
+        self.root.bind("<Control-z>", lambda e: self._undo())
+        self.root.bind("<Control-s>", lambda e: self._save_labels())
+
+    # ════════════════════════════════════════════════════════════════
+    #  IMAGE LOADING
+    # ════════════════════════════════════════════════════════════════
+
+    def _load_image(self):
+        """Load current image and its existing labels."""
+        path = self.image_paths[self.current_idx]
+
+        # Load with PIL
+        pil_img = Image.open(path)
+        self.orig_w, self.orig_h = pil_img.size
+
+        # Calculate scale to fit canvas
+        canvas_w = max(self.canvas.winfo_width(), 400)
+        canvas_h = max(self.canvas.winfo_height(), 400)
+        scale_w = canvas_w / self.orig_w
+        scale_h = canvas_h / self.orig_h
+        self.display_scale = min(scale_w, scale_h, 1.0)
+
+        disp_w = int(self.orig_w * self.display_scale)
+        disp_h = int(self.orig_h * self.display_scale)
+
+        resized = pil_img.resize((disp_w, disp_h), Image.LANCZOS)
+        self.tk_image = ImageTk.PhotoImage(resized)
+
+        # ── Draw image centered on canvas ───────────────────────────
+        self.canvas.delete("all")
+        self.canvas_ids.clear()
+
+        self.img_offset_x = (canvas_w - disp_w) // 2
+        self.img_offset_y = (canvas_h - disp_h) // 2
+
+        self.canvas.create_image(
+            self.img_offset_x, self.img_offset_y,
+            anchor=tk.NW, image=self.tk_image, tags="image"
+        )
+
+        # ── Load existing labels ────────────────────────────────────
+        self.boxes.clear()
+        label_path = self._label_path()
+        if label_path.exists():
+            with open(label_path, "r") as f:
+                for line in f:
+                    box = BoundingBox.from_yolo_line(line)
+                    if box:
+                        self.boxes.append(box)
+
+        self._redraw_boxes()
+        self._update_ui()
+
+    def _label_path(self) -> Path:
+        """Get the label file path for the current image."""
+        img_name = self.image_paths[self.current_idx].stem
+        return self.labels_dir / f"{img_name}.txt"
+
+    def _on_canvas_resize(self, event):
+        """Re-render when canvas is resized."""
+        if self.image_paths:
+            self._load_image()
+
+    # ════════════════════════════════════════════════════════════════
+    #  COORDINATE TRANSFORMS
+    # ════════════════════════════════════════════════════════════════
+
+    def _canvas_to_norm(self, cx: int, cy: int) -> tuple[float, float]:
+        """Canvas pixel → normalised image coordinates."""
+        ix = (cx - self.img_offset_x) / self.display_scale
+        iy = (cy - self.img_offset_y) / self.display_scale
+        return ix / self.orig_w, iy / self.orig_h
+
+    def _norm_to_canvas(self, nx: float, ny: float) -> tuple[int, int]:
+        """Normalised image coords → canvas pixel."""
+        ix = nx * self.orig_w * self.display_scale
+        iy = ny * self.orig_h * self.display_scale
+        return int(ix + self.img_offset_x), int(iy + self.img_offset_y)
+
+    # ════════════════════════════════════════════════════════════════
+    #  DRAWING EVENTS
+    # ════════════════════════════════════════════════════════════════
+
+    def _on_press(self, event):
+        self.drawing = True
+        self.start_x = event.x
+        self.start_y = event.y
+        self.temp_rect = self.canvas.create_rectangle(
+            event.x, event.y, event.x, event.y,
+            outline=ACTIVE_BOX_COLOR, width=2, dash=(4, 4)
+        )
+
+    def _on_drag(self, event):
+        if self.drawing and self.temp_rect:
+            self.canvas.coords(self.temp_rect, self.start_x, self.start_y, event.x, event.y)
+
+    def _on_release(self, event):
+        if not self.drawing:
+            return
+        self.drawing = False
+
+        if self.temp_rect:
+            self.canvas.delete(self.temp_rect)
+            self.temp_rect = None
+
+        # ── Compute box in normalised coords ────────────────────────
+        x1, y1 = self.start_x, self.start_y
+        x2, y2 = event.x, event.y
+
+        # Reject tiny boxes (accidental clicks)
+        if abs(x2 - x1) < 5 or abs(y2 - y1) < 5:
+            return
+
+        # Normalise
+        nx1, ny1 = self._canvas_to_norm(min(x1, x2), min(y1, y2))
+        nx2, ny2 = self._canvas_to_norm(max(x1, x2), max(y1, y2))
+
+        # Clamp to [0, 1]
+        nx1 = max(0.0, min(1.0, nx1))
+        ny1 = max(0.0, min(1.0, ny1))
+        nx2 = max(0.0, min(1.0, nx2))
+        ny2 = max(0.0, min(1.0, ny2))
+
+        xc = (nx1 + nx2) / 2
+        yc = (ny1 + ny2) / 2
+        w = nx2 - nx1
+        h = ny2 - ny1
+
+        if w <= 0 or h <= 0:
+            return
+
+        box = BoundingBox(xc, yc, w, h, class_id=0)
+        self.boxes.append(box)
+
+        self._redraw_boxes()
+        self._save_labels()
+        self._update_ui()
+        self.status.config(text=f"✅ Box added — total: {len(self.boxes)}")
+
+    def _on_right_click(self, event):
+        """Delete the box closest to the right-click position."""
+        if not self.boxes:
+            return
+
+        # Find which box the click is inside
+        click_nx, click_ny = self._canvas_to_norm(event.x, event.y)
+
+        for i, box in reversed(list(enumerate(self.boxes))):
+            half_w = box.w / 2
+            half_h = box.h / 2
+            if (box.x_center - half_w <= click_nx <= box.x_center + half_w and
+                    box.y_center - half_h <= click_ny <= box.y_center + half_h):
+                self.boxes.pop(i)
+                self._redraw_boxes()
+                self._save_labels()
+                self._update_ui()
+                self.status.config(text=f"🗑 Box deleted — total: {len(self.boxes)}")
+                return
+
+    # ════════════════════════════════════════════════════════════════
+    #  BOX RENDERING
+    # ════════════════════════════════════════════════════════════════
+
+    def _redraw_boxes(self):
+        """Clear and redraw all bounding boxes on the canvas."""
+        for cid in self.canvas_ids:
+            self.canvas.delete(cid)
+        self.canvas_ids.clear()
+
+        for i, box in enumerate(self.boxes):
+            x1_n = box.x_center - box.w / 2
+            y1_n = box.y_center - box.h / 2
+            x2_n = box.x_center + box.w / 2
+            y2_n = box.y_center + box.h / 2
+
+            cx1, cy1 = self._norm_to_canvas(x1_n, y1_n)
+            cx2, cy2 = self._norm_to_canvas(x2_n, y2_n)
+
+            rect_id = self.canvas.create_rectangle(
+                cx1, cy1, cx2, cy2,
+                outline=BOX_COLOR, width=2
+            )
+            self.canvas_ids.append(rect_id)
+
+            # Small label
+            label_id = self.canvas.create_text(
+                cx1 + 3, cy1 - 10,
+                text=f"#{i + 1}", anchor=tk.NW,
+                font=("Consolas", 8, "bold"), fill=BOX_COLOR
+            )
+            self.canvas_ids.append(label_id)
+
+    # ════════════════════════════════════════════════════════════════
+    #  SAVE / LOAD
+    # ════════════════════════════════════════════════════════════════
+
+    def _save_labels(self):
+        """Save current boxes to YOLO .txt file."""
+        label_path = self._label_path()
+        with open(label_path, "w") as f:
+            for box in self.boxes:
+                f.write(box.to_yolo_line() + "\n")
+
+    # ════════════════════════════════════════════════════════════════
+    #  NAVIGATION
+    # ════════════════════════════════════════════════════════════════
+
+    def _next_image(self):
+        if self.current_idx < len(self.image_paths) - 1:
+            self._save_labels()
+            self.current_idx += 1
+            self._load_image()
+
+    def _prev_image(self):
+        if self.current_idx > 0:
+            self._save_labels()
+            self.current_idx -= 1
+            self._load_image()
+
+    # ════════════════════════════════════════════════════════════════
+    #  ACTIONS
+    # ════════════════════════════════════════════════════════════════
+
+    def _undo(self):
+        if self.boxes:
+            self.boxes.pop()
+            self._redraw_boxes()
+            self._save_labels()
+            self._update_ui()
+            self.status.config(text=f"↩ Undo — boxes: {len(self.boxes)}")
+
+    def _clear_boxes(self):
+        if self.boxes:
+            if messagebox.askyesno("Clear All", "Delete all boxes on this image?"):
+                self.boxes.clear()
+                self._redraw_boxes()
+                self._save_labels()
+                self._update_ui()
+                self.status.config(text="🗑 All boxes cleared")
+
+    def _move_to_val(self):
+        """Move the current image (and its label) to the validation set."""
+        img_path = self.image_paths[self.current_idx]
+        label_path = self._label_path()
+
+        name = img_path.name
+        if messagebox.askyesno("Move to Validation", f"Move '{name}' to validation set?"):
+            # Move image
+            dest_img = VAL_IMAGES / img_path.name
+            shutil.move(str(img_path), str(dest_img))
+
+            # Move label if exists
+            if label_path.exists():
+                dest_label = VAL_LABELS / label_path.name
+                shutil.move(str(label_path), str(dest_label))
+
+            # Remove from list
+            self.image_paths.pop(self.current_idx)
+
+            if not self.image_paths:
+                messagebox.showinfo("Done", "All images have been moved or annotated!")
+                self.root.destroy()
+                return
+
+            if self.current_idx >= len(self.image_paths):
+                self.current_idx = len(self.image_paths) - 1
+
+            self._load_image()
+            self.status.config(text=f"📦 '{name}' moved to validation set")
+
+    # ════════════════════════════════════════════════════════════════
+    #  UI UPDATES
+    # ════════════════════════════════════════════════════════════════
+
+    def _update_ui(self):
+        img_path = self.image_paths[self.current_idx]
+        total = len(self.image_paths)
+        idx = self.current_idx + 1
+
+        # Count how many images already have labels
+        annotated = sum(
+            1 for p in self.image_paths
+            if (self.labels_dir / f"{p.stem}.txt").exists()
+            and (self.labels_dir / f"{p.stem}.txt").stat().st_size > 0
+        )
+
+        self.file_label.config(text=img_path.name)
+        self.size_label.config(text=f"{self.orig_w} × {self.orig_h} px")
+        self.count_label.config(text=f"Boxes: {len(self.boxes)}")
+        self.progress_label.config(text=f"Image {idx}/{total}  •  {annotated} annotated")
+        self.root.title(f"🔬 Pollen Annotator — {img_path.name} [{idx}/{total}]")
+
+        # Button states
+        self.prev_btn.config(state=tk.NORMAL if self.current_idx > 0 else tk.DISABLED)
+        self.next_btn.config(state=tk.NORMAL if self.current_idx < total - 1 else tk.DISABLED)
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Annotate pollen images with bounding boxes.")
+    parser.add_argument("--images", type=str, default=str(DEFAULT_IMAGES), help="Folder of images to annotate.")
+    parser.add_argument("--labels", type=str, default=str(DEFAULT_LABELS), help="Folder to save YOLO labels.")
+    return parser.parse_args()
+
+
+def main():
+    args = parse_args()
+
+    root = tk.Tk()
+    root.state("zoomed")  # Start maximised on Windows
+
+    app = AnnotationApp(
+        root,
+        images_dir=Path(args.images),
+        labels_dir=Path(args.labels),
+    )
+
+    root.mainloop()
+
+    # Final report
+    labels_dir = Path(args.labels)
+    label_count = sum(1 for f in labels_dir.glob("*.txt") if f.stat().st_size > 0)
+    print(f"\n[INFO] Annotation complete — {label_count} label file(s) saved to {labels_dir}")
+
+
+if __name__ == "__main__":
+    main()

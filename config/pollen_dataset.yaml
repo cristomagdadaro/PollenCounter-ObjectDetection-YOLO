@@ -10,8 +10,8 @@
 #   All values are normalised to [0, 1].
 # ──────────────────────────────────────────────────────────────────────
 
-# Paths are relative to THIS file's parent directory.
-path: ../datasets          # dataset root
+# Absolute path to dataset root (avoids Ultralytics path resolution issues).
+path: C:/laragon/www/PollenCounter-ObjectDetection-YOLO/datasets
 train: images/train        # training images  (relative to 'path')
 val: images/val            # validation images (relative to 'path')
 
