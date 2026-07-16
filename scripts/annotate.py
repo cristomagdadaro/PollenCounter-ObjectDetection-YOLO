@@ -220,6 +220,7 @@ class AnnotationApp:
         instructions = [
             ("🖱 Drag", "Draw box"),
             ("Double-Click", "Auto-box at cursor"),
+            ("Spacebar", "Auto-box at cursor"),
             ("Right-click", "Delete box"),
             ("← →  or  A/D", "Prev / Next"),
             ("Scroll or + / -", "Zoom In / Out"),
@@ -282,6 +283,7 @@ class AnnotationApp:
         self.canvas.bind("<ButtonRelease-1>", self._on_release)
         self.canvas.bind("<ButtonPress-3>", self._on_right_click)
         self.canvas.bind("<Configure>", self._on_canvas_resize)
+        self.canvas.bind("<Motion>", self._on_mouse_move)
 
         self.root.bind("<Left>", lambda e: self._prev_image())
         self.root.bind("<Right>", lambda e: self._next_image())
@@ -293,6 +295,7 @@ class AnnotationApp:
         self.root.bind("<plus>", lambda e: self._zoom_in())
         self.root.bind("<equal>", lambda e: self._zoom_in())
         self.root.bind("<minus>", lambda e: self._zoom_out())
+        self.root.bind("<space>", self._on_space)
 
     # ════════════════════════════════════════════════════════════════
     #  IMAGE LOADING
@@ -481,10 +484,28 @@ class AnnotationApp:
                 self.status.config(text=f"🗑 Box deleted — total: {len(self.boxes)}")
                 return
 
+    def _on_mouse_move(self, event):
+        self.last_mouse_x = self.canvas.canvasx(event.x)
+        self.last_mouse_y = self.canvas.canvasy(event.y)
+
+    def _on_space(self, event):
+        if not hasattr(self, 'last_mouse_x'):
+            return
+        self._create_auto_box(self.last_mouse_x, self.last_mouse_y, "(spacebar)")
+
     def _on_double_click(self, event):
         """Auto-create a box of default size centered at the double-click."""
         cx = self.canvas.canvasx(event.x)
         cy = self.canvas.canvasy(event.y)
+        self._create_auto_box(cx, cy, "")
+        
+        # Cancel the drag-box that was started by the first click of the double-click
+        self.drawing = False
+        if self.temp_rect:
+            self.canvas.delete(self.temp_rect)
+            self.temp_rect = None
+
+    def _create_auto_box(self, cx: float, cy: float, suffix: str):
         nx, ny = self._canvas_to_norm(cx, cy)
         
         # Clamp coordinates so box doesn't go off screen
@@ -497,13 +518,7 @@ class AnnotationApp:
         self._redraw_boxes()
         self._save_labels()
         self._update_ui()
-        self.status.config(text=f"✅ Auto-box added — total: {len(self.boxes)}")
-        
-        # Cancel the drag-box that was started by the first click of the double-click
-        self.drawing = False
-        if self.temp_rect:
-            self.canvas.delete(self.temp_rect)
-            self.temp_rect = None
+        self.status.config(text=f"✅ Auto-box added {suffix} — total: {len(self.boxes)}")
 
     def _calculate_default_box_size(self):
         """Find the median width and height of all existing annotations."""
