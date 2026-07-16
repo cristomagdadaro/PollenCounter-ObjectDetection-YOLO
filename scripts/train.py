@@ -39,6 +39,7 @@ import argparse
 import sys
 from pathlib import Path
 
+# pyrefly: ignore [missing-import]
 from ultralytics import YOLO
 
 
