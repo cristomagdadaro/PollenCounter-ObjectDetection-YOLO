@@ -132,6 +132,8 @@ class AnnotationApp:
         self.orig_h = 0
         self.pil_img: Optional[Image.Image] = None
         self.tk_image: Optional[ImageTk.PhotoImage] = None
+        
+        self._calculate_default_box_size()
 
         # ── Build UI ────────────────────────────────────────────────
         self._build_ui()
@@ -217,6 +219,7 @@ class AnnotationApp:
 
         instructions = [
             ("🖱 Drag", "Draw box"),
+            ("Double-Click", "Auto-box at cursor"),
             ("Right-click", "Delete box"),
             ("← →  or  A/D", "Prev / Next"),
             ("Scroll or + / -", "Zoom In / Out"),
@@ -274,6 +277,7 @@ class AnnotationApp:
 
         # ── Bind events ────────────────────────────────────────────
         self.canvas.bind("<ButtonPress-1>", self._on_press)
+        self.canvas.bind("<Double-Button-1>", self._on_double_click)
         self.canvas.bind("<B1-Motion>", self._on_drag)
         self.canvas.bind("<ButtonRelease-1>", self._on_release)
         self.canvas.bind("<ButtonPress-3>", self._on_right_click)
@@ -476,6 +480,51 @@ class AnnotationApp:
                 self._update_ui()
                 self.status.config(text=f"🗑 Box deleted — total: {len(self.boxes)}")
                 return
+
+    def _on_double_click(self, event):
+        """Auto-create a box of default size centered at the double-click."""
+        cx = self.canvas.canvasx(event.x)
+        cy = self.canvas.canvasy(event.y)
+        nx, ny = self._canvas_to_norm(cx, cy)
+        
+        # Clamp coordinates so box doesn't go off screen
+        nx = max(self.default_w / 2, min(1.0 - self.default_w / 2, nx))
+        ny = max(self.default_h / 2, min(1.0 - self.default_h / 2, ny))
+        
+        box = BoundingBox(nx, ny, self.default_w, self.default_h, class_id=0)
+        self.boxes.append(box)
+        
+        self._redraw_boxes()
+        self._save_labels()
+        self._update_ui()
+        self.status.config(text=f"✅ Auto-box added — total: {len(self.boxes)}")
+        
+        # Cancel the drag-box that was started by the first click of the double-click
+        self.drawing = False
+        if self.temp_rect:
+            self.canvas.delete(self.temp_rect)
+            self.temp_rect = None
+
+    def _calculate_default_box_size(self):
+        """Find the median width and height of all existing annotations."""
+        widths = []
+        heights = []
+        for label_file in self.labels_dir.glob("*.txt"):
+            with open(label_file, "r") as f:
+                for line in f:
+                    box = BoundingBox.from_yolo_line(line)
+                    if box:
+                        widths.append(box.w)
+                        heights.append(box.h)
+        
+        if widths and heights:
+            widths.sort()
+            heights.sort()
+            self.default_w = widths[len(widths) // 2]
+            self.default_h = heights[len(heights) // 2]
+        else:
+            self.default_w = 0.05
+            self.default_h = 0.05
 
     # ════════════════════════════════════════════════════════════════
     #  BOX RENDERING
