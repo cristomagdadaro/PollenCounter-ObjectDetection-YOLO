@@ -1,5 +1,4 @@
 .venv/Lib/*
 .venv/Scripts/*
 runs/*
-datasets/real2/*
 Pollen-Counter-V1/*
