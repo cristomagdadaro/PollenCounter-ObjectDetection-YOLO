@@ -138,7 +138,7 @@ def run_inference(
         results = model.predict(
             source=str(img_path),
             conf=conf,
-            iou=0.9,  # high IOU allows heavily overlapping grains
+            iou=0.25,  # lower IOU prevents double-counting the same grain
             imgsz=imgsz,
             device=device,
             verbose=False,

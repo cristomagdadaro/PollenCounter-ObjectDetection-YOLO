@@ -1,0 +1,16 @@
+C:/laragon/www/PollenCounter-ObjectDetection-YOLO/datasets/images/train/1104_1_pollen_7July2025_1.2x_I2KI.jpg
+C:/laragon/www/PollenCounter-ObjectDetection-YOLO/datasets/images/train/1104_6_pollen_7July2025_1.2x_I2KI.jpg
+C:/laragon/www/PollenCounter-ObjectDetection-YOLO/datasets/images/train/1105_1_pollen_7July2025_1.2x_I2KI.jpg
+C:/laragon/www/PollenCounter-ObjectDetection-YOLO/datasets/images/train/1105_7_pollen_7July2025_1.2x_I2KI.jpg
+C:/laragon/www/PollenCounter-ObjectDetection-YOLO/datasets/images/train/222_5_pollen_10June2025_1.5x.jpg
+C:/laragon/www/PollenCounter-ObjectDetection-YOLO/datasets/images/train/392_4_Pollen_10July2025_1.2x_I2KI.jpg
+C:/laragon/www/PollenCounter-ObjectDetection-YOLO/datasets/images/train/402_1_pollen_5June2025_1.5x.jpg
+C:/laragon/www/PollenCounter-ObjectDetection-YOLO/datasets/images/train/402_2_pollen_5June2025_1.5x.jpg
+C:/laragon/www/PollenCounter-ObjectDetection-YOLO/datasets/images/train/402_3_pollen_5June2025_1.5x.jpg
+C:/laragon/www/PollenCounter-ObjectDetection-YOLO/datasets/images/train/402_4_pollen_5June2025_1.5x.jpg
+C:/laragon/www/PollenCounter-ObjectDetection-YOLO/datasets/images/train/402_5_pollen_5June2025_1.5x.jpg
+C:/laragon/www/PollenCounter-ObjectDetection-YOLO/datasets/images/train/402_6_pollen_5June2025_1.5x.jpg
+C:/laragon/www/PollenCounter-ObjectDetection-YOLO/datasets/images/train/402_7_pollen_5June2025_1.5x.jpg
+C:/laragon/www/PollenCounter-ObjectDetection-YOLO/datasets/images/train/418_7_pollen_7July2025_1.2x_I2KI.jpg
+C:/laragon/www/PollenCounter-ObjectDetection-YOLO/datasets/images/train/480_5_pollen_9June2025_1.5.tif
+C:/laragon/www/PollenCounter-ObjectDetection-YOLO/datasets/images/train/480_8_pollen_9June2025_1.5.tif

@@ -111,6 +111,34 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def _generate_annotated_image_lists(dataset_root: Path) -> None:
+    """Generate train.txt and val.txt containing only images that have annotations."""
+    for split in ["train", "val"]:
+        labels_dir = dataset_root / "labels" / split
+        images_dir = dataset_root / "images" / split
+        list_file = dataset_root / f"{split}.txt"
+        
+        if not labels_dir.exists():
+            continue
+            
+        annotated_images = []
+        for label_file in labels_dir.glob("*.txt"):
+            if label_file.stat().st_size > 0:
+                # Find matching image
+                for ext in [".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".webp"]:
+                    img_path = images_dir / f"{label_file.stem}{ext}"
+                    if img_path.exists():
+                        # Write the path relative to the dataset root, or absolute
+                        # YOLO handles absolute paths perfectly
+                        annotated_images.append(str(img_path.absolute()).replace("\\", "/"))
+                        break
+                        
+        with open(list_file, "w") as f:
+            for img in annotated_images:
+                f.write(f"{img}\n")
+        print(f"[INFO] Generated {split}.txt with {len(annotated_images)} annotated images.")
+
+
 def main() -> None:
     """Entry-point: configure and launch YOLOv26 training."""
     args = parse_args()
@@ -120,6 +148,10 @@ def main() -> None:
     if not data_path.exists():
         print(f"[ERROR] Dataset config not found: {data_path}")
         sys.exit(1)
+
+    # ── Generate lists of annotated images ──────────────────────────
+    dataset_root = PROJECT_ROOT / "datasets"
+    _generate_annotated_image_lists(dataset_root)
 
     # ── Load model ──────────────────────────────────────────────────
     if args.resume:

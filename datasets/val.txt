@@ -1,0 +1,2 @@
+C:/laragon/www/PollenCounter-ObjectDetection-YOLO/datasets/images/val/402_8_pollen_5June2025_1.5x.jpg
+C:/laragon/www/PollenCounter-ObjectDetection-YOLO/datasets/images/val/402_9_pollen_5June2025_1.5x.jpg
