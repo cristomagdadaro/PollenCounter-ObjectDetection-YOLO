@@ -214,6 +214,32 @@ class AnnotationApp:
         )
         self.count_label.pack(pady=12)
 
+        # ── Sidebar: auto box size ──────────────────────────────────
+        tk.Frame(sidebar, bg="#444466", height=1).pack(fill=tk.X, padx=12, pady=4)
+        tk.Label(
+            sidebar, text="Auto-Box Size (px)", font=("Segoe UI", 11, "bold"),
+            bg=SIDEBAR_BG, fg=ACCENT
+        ).pack(anchor=tk.W, padx=12, pady=(4, 2))
+
+        size_frame = tk.Frame(sidebar, bg=SIDEBAR_BG)
+        size_frame.pack(anchor=tk.W, padx=12, pady=(0, 4))
+
+        tk.Label(size_frame, text="W:", font=("Consolas", 9), bg=SIDEBAR_BG, fg=TEXT_COLOR).pack(side=tk.LEFT)
+        self.entry_w = tk.Entry(size_frame, width=5, font=("Consolas", 10), bg="#333", fg="white", insertbackground="white", bd=0)
+        self.entry_w.pack(side=tk.LEFT, padx=(2, 8))
+
+        tk.Label(size_frame, text="H:", font=("Consolas", 9), bg=SIDEBAR_BG, fg=TEXT_COLOR).pack(side=tk.LEFT)
+        self.entry_h = tk.Entry(size_frame, width=5, font=("Consolas", 10), bg="#333", fg="white", insertbackground="white", bd=0)
+        self.entry_h.pack(side=tk.LEFT, padx=(2, 0))
+        self.entry_w.bind("<KeyRelease>", self._update_auto_size)
+        self.entry_h.bind("<KeyRelease>", self._update_auto_size)
+        
+        # Remove focus on Enter or Escape
+        self.entry_w.bind("<Return>", lambda e: self.canvas.focus_set())
+        self.entry_h.bind("<Return>", lambda e: self.canvas.focus_set())
+        self.entry_w.bind("<Escape>", lambda e: self.canvas.focus_set())
+        self.entry_h.bind("<Escape>", lambda e: self.canvas.focus_set())
+
         # ── Sidebar: instructions ───────────────────────────────────
         tk.Frame(sidebar, bg="#444466", height=1).pack(fill=tk.X, padx=12, pady=4)
 
@@ -320,8 +346,29 @@ class AnnotationApp:
                     if box:
                         self.boxes.append(box)
 
+        self._update_size_entries()
         self._render_image()
         self._update_ui()
+        
+    def _update_size_entries(self):
+        if not self.orig_w or not self.orig_h: return
+        w_px = int(self.default_w * self.orig_w)
+        h_px = int(self.default_h * self.orig_h)
+        self.entry_w.delete(0, tk.END)
+        self.entry_w.insert(0, str(w_px))
+        self.entry_h.delete(0, tk.END)
+        self.entry_h.insert(0, str(h_px))
+
+    def _update_auto_size(self, event=None):
+        if not self.orig_w or not self.orig_h: return
+        try:
+            w_px = float(self.entry_w.get())
+            h_px = float(self.entry_h.get())
+            if w_px > 0 and h_px > 0:
+                self.default_w = w_px / self.orig_w
+                self.default_h = h_px / self.orig_h
+        except ValueError:
+            pass # Invalid input, ignore until valid
         
     def _render_image(self):
         """Scale and display the image on the canvas."""
@@ -404,6 +451,7 @@ class AnnotationApp:
     # ════════════════════════════════════════════════════════════════
 
     def _on_press(self, event):
+        self.canvas.focus_set()  # Remove focus from any text entries
         self.drawing = True
         self.start_x = self.canvas.canvasx(event.x)
         self.start_y = self.canvas.canvasy(event.y)
@@ -489,6 +537,8 @@ class AnnotationApp:
         self.last_mouse_y = self.canvas.canvasy(event.y)
 
     def _on_space(self, event):
+        if isinstance(event.widget, tk.Entry):
+            return  # Allow typing spaces in text boxes (though not needed for numbers)
         if not hasattr(self, 'last_mouse_x'):
             return
         self._create_auto_box(self.last_mouse_x, self.last_mouse_y, "(spacebar)")
