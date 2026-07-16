@@ -76,7 +76,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--imgsz",
         type=int,
-        default=640,
+        default=1024,
         help="Input image size (pixels).",
     )
     parser.add_argument(
@@ -181,6 +181,7 @@ def main() -> None:
         hsv_s=0.0,                    # saturation shift OFF
         hsv_v=0.0,                    # brightness shift OFF
         mixup=0.0,                    # mixup OFF (would blend colours)
+        copy_paste=0.3,               # inject artificial overlap without colour blending
     )
 
     # ── Report ──────────────────────────────────────────────────────
