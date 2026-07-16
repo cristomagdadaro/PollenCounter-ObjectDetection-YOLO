@@ -1,8 +1,13 @@
 # PollenCounter-ObjectDetection-YOLO
 # Python 3.10+ | YOLOv26 (yolo26n.pt)
 #
+
+#
 # Core dependencies — torch/torchvision pulled transitively by ultralytics.
 ultralytics>=8.4
 opencv-python>=4.8
 pandas>=2.0
 openpyxl>=3.1
+
+# Install PyTorch with CUDA 12.4 support if needed:
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124 --force-reinstall

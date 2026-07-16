@@ -12,7 +12,7 @@ save_period: -1
 cache: false
 device: '0'
 workers: 8
-project: C:\laragon\www\PollenCounter-ObjectDetection-YOLO\runs\detect
+project: D:\CBC-Apps\PollenCounter-ObjectDetection-YOLO\runs\detect
 name: train
 exist_ok: true
 pretrained: true
@@ -104,9 +104,10 @@ mosaic: 1.0
 mixup: 0.0
 cutmix: 0.0
 copy_paste: 0.3
+copy_paste: 0.3
 copy_paste_mode: flip
 auto_augment: randaugment
 erasing: 0.4
 cfg: null
 tracker: tracktrack.yaml
-save_dir: C:\laragon\www\PollenCounter-ObjectDetection-YOLO\runs\detect\train
+save_dir: D:\CBC-Apps\PollenCounter-ObjectDetection-YOLO\runs\detect\train
