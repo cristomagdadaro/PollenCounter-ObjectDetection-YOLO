@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+import json
 import threading
 import random
 import shutil
@@ -125,10 +126,9 @@ def run_inference(
                 if n_detections > 0:
                     for box in boxes.xyxy.cpu().tolist():
                         x1, y1, x2, y2 = box
-                        cx, cy = int((x1 + x2) / 2), int((y1 + y2) / 2)
+                        x1_i, y1_i, x2_i, y2_i = int(x1), int(y1), int(x2), int(y2)
                         color = (random.randint(50, 255), random.randint(100, 255), random.randint(50, 255))
-                        cv2.circle(annotated_img, (cx, cy), radius=6, color=color, thickness=-1)
-                        cv2.circle(annotated_img, (cx, cy), radius=6, color=(255, 255, 255), thickness=1)
+                        cv2.rectangle(annotated_img, (x1_i, y1_i), (x2_i, y2_i), color=color, thickness=3)
 
                 overlay = annotated_img.copy()
                 text = str(n_detections)
@@ -270,7 +270,7 @@ def show_results_viewer(parent, summary_rows, in_dir, out_dir):
 
 def run_gui():
     root = tk.Tk()
-    root.title("🤖 Unified Inference Tool")
+    root.title("Unified Inference Tool")
     root.geometry("650x700")
     root.configure(bg="#1E1E2E")
     
@@ -283,13 +283,22 @@ def run_gui():
     
     tk.Label(root, text="✨ Unified YOLO Inference", font=("Segoe UI", 14, "bold"), bg=BG_COLOR, fg=ACCENT_COLOR).pack(pady=10)
     
-    var_mode = tk.StringVar(value="Count & Analyze")
-    var_input = tk.StringVar(value=str(DEFAULT_INPUT))
-    var_out = tk.StringVar(value=str(DEFAULT_OUTPUT))
-    var_weights = tk.StringVar(value=str(DEFAULT_WEIGHTS))
-    var_conf = tk.StringVar(value="0.25")
-    var_imgsz = tk.StringVar(value="1024")
-    var_device = tk.StringVar(value="0")
+    CONFIG_FILE = PROJECT_ROOT / "config" / "inference_settings.json"
+    saved_settings = {}
+    if CONFIG_FILE.exists():
+        try:
+            with open(CONFIG_FILE, "r") as f:
+                saved_settings = json.load(f)
+        except Exception:
+            pass
+            
+    var_mode = tk.StringVar(value=saved_settings.get("mode", "Count & Analyze"))
+    var_input = tk.StringVar(value=saved_settings.get("input", str(DEFAULT_INPUT)))
+    var_out = tk.StringVar(value=saved_settings.get("output", str(DEFAULT_OUTPUT)))
+    var_weights = tk.StringVar(value=saved_settings.get("weights", str(DEFAULT_WEIGHTS)))
+    var_conf = tk.StringVar(value=str(saved_settings.get("conf", "0.25")))
+    var_imgsz = tk.StringVar(value=str(saved_settings.get("imgsz", "1024")))
+    var_device = tk.StringVar(value=str(saved_settings.get("device", "0")))
     
     def make_row(parent, label_text, var, browse_func=None, is_combo=False, combo_vals=None):
         frame = tk.Frame(parent, bg=BG_COLOR)
@@ -357,6 +366,22 @@ def run_gui():
         log_text.config(state=tk.DISABLED)
         progress_var.set(0)
         
+        try:
+            settings_to_save = {
+                "mode": var_mode.get(),
+                "input": var_input.get(),
+                "output": var_out.get(),
+                "weights": var_weights.get(),
+                "conf": var_conf.get(),
+                "imgsz": var_imgsz.get(),
+                "device": var_device.get()
+            }
+            CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+            with open(CONFIG_FILE, "w") as f:
+                json.dump(settings_to_save, f)
+        except Exception as e:
+            log_cb(f"Warning: Failed to save settings: {e}")
+            
         def _thread():
             try:
                 in_dir, out_dir = Path(var_input.get()), Path(var_out.get())
@@ -375,7 +400,12 @@ def run_gui():
                 )
                 
                 if var_mode.get() == "Count & Analyze" and summary:
-                    root.after(0, lambda: btn_view.config(state=tk.NORMAL, command=lambda: show_results_viewer(root, summary, in_dir, out_dir)))
+                    root.after(0, lambda: btn_view.config(text="🔍 View Results", state=tk.NORMAL, command=lambda: show_results_viewer(root, summary, in_dir, out_dir)))
+                elif var_mode.get() == "Auto-Annotate":
+                    import subprocess
+                    def launch_annotator():
+                        subprocess.Popen([sys.executable, "scripts/annotate.py", "--images", str(out_dir / "images" / "review"), "--labels", str(out_dir / "labels" / "review")])
+                    root.after(0, lambda: btn_view.config(text="✏️ Open Annotator", state=tk.NORMAL, command=launch_annotator))
                 
                 root.after(0, lambda: log_cb(f"\nDone! Processed {len(images)} images.\nSaved to {out_dir}"))
             except Exception as e:

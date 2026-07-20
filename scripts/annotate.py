@@ -376,6 +376,14 @@ class AnnotationApp:
         )
         self.exclude_btn.pack(pady=2)
 
+        tk.Frame(sidebar, bg="#444466", height=1).pack(fill=tk.X, padx=12, pady=4)
+
+        self.delete_btn = tk.Button(
+            sidebar, text="❌ Delete Permanently", bg="#7F1D1D", fg="white",
+            activebackground="#450A0A", command=self._delete_image, **btn_style
+        )
+        self.delete_btn.pack(pady=2)
+
         # ── Status bar ──────────────────────────────────────────────
         self.status = tk.Label(
             self.root, text="Ready", font=("Segoe UI", 9),
@@ -797,6 +805,40 @@ class AnnotationApp:
             self._save_labels()
             self.current_idx -= 1
             self._load_image()
+
+    def _delete_image(self):
+        if not self.image_paths: return
+        
+        current_img_path = self.image_paths[self.current_idx]
+        if not messagebox.askyesno("Confirm Delete", f"Are you sure you want to PERMANENTLY delete:\n\n{current_img_path.name}\n\nThis cannot be undone!", parent=self.root):
+            return
+
+        current_lbl_path = self._label_path()
+        if current_lbl_path.exists():
+            current_lbl_path.unlink()
+            
+        try:
+            current_img_path.unlink()
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to delete image: {e}")
+            return
+            
+        del self.image_paths[self.current_idx]
+        self._update_ui()
+        
+        if not self.image_paths:
+            self.canvas.delete("all")
+            self.pil_img = None
+            self.boxes.clear()
+            self._update_ui()
+            self.status.config(text="🗑 Deleted last image.")
+            return
+
+        if self.current_idx >= len(self.image_paths):
+            self.current_idx = len(self.image_paths) - 1
+            
+        self._load_image()
+        self.status.config(text=f"🗑 Permanently deleted image")
 
     # ════════════════════════════════════════════════════════════════
     #  ACTIONS
