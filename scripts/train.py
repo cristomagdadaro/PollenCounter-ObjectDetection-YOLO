@@ -46,7 +46,7 @@ from ultralytics import YOLO
 # ─── Project paths ──────────────────────────────────────────────────
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATASET_YAML = PROJECT_ROOT / "config" / "pollen_dataset.yaml"
-DEFAULT_MODEL = "yolo26n.pt"
+DEFAULT_MODEL = "yolo11m.pt"
 
 
 def parse_args() -> argparse.Namespace:
@@ -200,7 +200,7 @@ def main() -> None:
         name=args.name,
         exist_ok=True,
         # ── Optimizer ───────────────────────────────────────────────
-        optimizer="MuSGD",            # YOLO26 native hybrid Muon-SGD
+        optimizer="auto",             # Auto optimizer for YOLO11
         # ── Geometric augmentations (ENABLED) ───────────────────────
         degrees=180.0,                # full rotation (pollen is symmetric)
         fliplr=0.5,                   # horizontal flip
@@ -208,12 +208,13 @@ def main() -> None:
         scale=0.2,                    # ±20 % zoom to simulate magnification variance
         translate=0.1,                # ±10 % translation
         mosaic=1.0,                   # mosaic composition (geometric, no colour change)
-        # ── Colour augmentations (DISABLED — protect anthocyanin) ───
-        hsv_h=0.0,                    # hue shift OFF
-        hsv_s=0.0,                    # saturation shift OFF
-        hsv_v=0.0,                    # brightness shift OFF
+        # ── Colour augmentations (ENABLED) ───
+        hsv_h=0.015,                  # hue shift
+        hsv_s=0.2,                    # saturation shift
+        hsv_v=0.2,                    # brightness shift
         mixup=0.0,                    # mixup OFF (would blend colours)
         copy_paste=0.3,               # inject artificial overlap without colour blending
+        workers=0,                    # disable multiprocessing (prevents shm.dll error on Windows)
     )
 
     # ── Report ──────────────────────────────────────────────────────

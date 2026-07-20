@@ -1,180 +1,124 @@
-# 🔬 PollenCounter — YOLOv26 Object Detection
+# 🔬 PollenCounter — YOLO11 Object Detection
 
-> **High-Volume Automated Pollen Counting** using YOLOv26's NMS-free, end-to-end architecture.
+> **High-Volume Automated Pollen Counting** using YOLO11.
 
-Automate the counting of microscopic pollen grains across massive image datasets containing overlapping clusters and slide debris.  The pipeline trains a custom YOLOv26-Nano detector and exports per-image pollen counts to a structured `.xlsx` spreadsheet.
-
----
-
-## Why YOLOv26?
-
-| Feature | Benefit for Pollen Counting |
-|---|---|
-| **NMS-Free Inference** | Traditional Non-Maximum Suppression _deletes_ overlapping bounding boxes. When pollen grains are clumped, NMS causes systematic under-counting. YOLO26 eliminates NMS entirely, preserving every detection. |
-| **C2PSA (Cross-Stage Partial Spatial Attention)** | Acts as a _digital spectrometer_ — the spatial attention mechanism isolates the vibrant purple anthocyanin pigmentation of pollen grains while suppressing slide debris, air bubbles, and background noise. |
-| **MuSGD Optimizer** | Hybrid Muon-SGD optimizer delivers rapid convergence, critical when training on smaller scientific annotation sets. |
-| **STAL (Small-Target-Aware Label Assignment)** | Improves detection of tiny, distant pollen grains that appear at low magnification. |
+Automate the counting of microscopic pollen grains across massive image datasets containing overlapping clusters and slide debris. The pipeline trains a custom YOLO11-Nano detector and exports per-image pollen counts to a structured `.xlsx` spreadsheet, while generating annotated images.
 
 ---
 
-## Project Structure
+## 🚀 Model Evolution & Best Practices (Living Document)
 
-```
-PollenCounter-ObjectDetection-YOLO/
-├── config/
-│   └── pollen_dataset.yaml       # Dataset paths & class names
-├── datasets/
-│   ├── images/
-│   │   ├── train/                # Your annotated training images
-│   │   └── val/                  # Your annotated validation images
-│   └── labels/
-│       ├── train/                # YOLO .txt labels for training
-│       └── val/                  # YOLO .txt labels for validation
-├── input_images/                 # Images for batch inference
-├── output/                       # XLSX reports & annotated images
-├── scripts/
-│   ├── train.py                  # Training launcher
-│   └── count_pollen.py           # Batch inference + XLSX export
-├── requirements.txt
-└── README.md
-```
+This project has evolved through continuous testing to optimise accuracy. Below are the key discoveries and techniques to improve the model over time.
+
+### 1. Model Choice: Why YOLO11 Nano?
+- We are currently using **`yolo11n.pt` (Nano)**. 
+- **Why not YOLO11 Extra Large (`yolo11x.pt`)?** With a small dataset (e.g., 16 images), large models instantly memorise the dataset (catastrophic overfitting). They also run much slower. 
+- **When to upgrade:** Once you have manually annotated **300 to 500 images** using the GUI annotator, you can safely upgrade to `yolo11s.pt` (Small) or `yolo11m.pt` (Medium) for a significant accuracy boost.
+
+### 2. Preventing Double-Counting (IoU Tuning)
+- Overlapping pollen grains can easily be double-counted if the model draws two boxes on the exact same grain.
+- **Solution:** We tuned the Non-Maximum Suppression (NMS) `iou` threshold to `0.25` in `count_pollen.py`. This ensures that if two boxes overlap by more than 25%, the less confident one is deleted, preventing duplicate counts on a single grain.
+
+### 3. Resolution and VRAM Limits
+- **`imgsz=1024` vs `imgsz=2048`**: We found that training at `1024` actually produced a higher `mAP50` (35.8%) than `2048` (33.1%).
+- **Why?** At 2048x2048, the background details (microscopic dirt, slide scratches) become too sharp, distracting the model from the macroscopic pollen shape. 
+- **Hardware limit:** `imgsz 2048` at `batch 24` exceeds the 24GB VRAM of an RTX 3090. If you ever must train at 2048, you must drop the batch size to `4` or `8`. The sweet spot for this project is `imgsz=1024, batch=20`.
+
+### 4. Overfitting & Epochs
+- **Question:** Does increasing epochs (e.g. 150 to 300) increase accuracy?
+- **Answer:** Only up to a point. If the dataset is too small (e.g., 16 images), training for too long results in "Fitness Collapse" (NaN losses) where the model overfits and breaks. To get `mAP50` to 90%+, you must annotate more images, not just increase epochs.
+
+### 5. Augmentation Strategy
+- **Geometric (Enabled):** Rotations (±180°), flips, and scaling simulate magnification variance and orientation since pollen is symmetrical.
+- **Colour (Enabled):** `hsv_h`, `hsv_s`, `hsv_v`, and `mixup` are **enabled**. This is critical because lighting conditions and I2KI staining shades vary wildly between different microscope slides. Colour augmentations force the model to look at the *shape* of the pollen, rather than memorising the exact shade of purple.
 
 ---
 
-## Setup
+## 📊 Training History & Results Log
 
-### 1. Create a Virtual Environment
+To ensure continuous improvement, log the results of every major training run here to compare and contrast how different hyperparameter combinations affect the `mAP50`.
+
+| Date | Dataset Size | Model | Resolution (`imgsz`) | Batch Size | Epochs | mAP50 | Notes / Insights |
+|---|---|---|---|---|---|---|---|
+| **Jul 16** | 16 Train / 2 Val | `yolo11n.pt` | 1024 | 16 | 150 | **35.8%** | *Initial YOLO11 baseline. Good balance of speed and detail.* |
+| **Jul 16** | 16 Train / 2 Val | `yolo11n.pt` | 2048 | 4 | 150 | **33.1%** | *Massive VRAM usage (caused OOM at batch 24). Accuracy dropped due to microscopic noise and artifacts distracting the model.* |
+| **Jul 16** | 16 Train / 2 Val | `yolo11n.pt` | 768 | 24 | 150 | **31.1%** | *Downscaling too far caused loss of critical pollen grain details.* |
+| **Jul 20** | 16 Train / 2 Val | `yolo11n.pt` | 1024 | 20 | 100 | **TBD** | *Enabled HSV and Mixup augmentations to combat lighting variance across slides. Changed optimizer to `auto`.* |
+
+*Remember to update this table every time a new dataset batch is annotated or a major training setting is changed!*
+
+---
+
+## 🎨 Annotation GUI Tool
+
+A built-in Tkinter GUI is provided to rapidly build your dataset.
 
 ```bash
-python -m venv .venv
-
-# Windows
-.venv\Scripts\activate
-
-# macOS / Linux
-source .venv/bin/activate
+python scripts/annotate.py
 ```
 
-### 2. Install Dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-This installs `ultralytics` (with PyTorch), `opencv-python`, `pandas`, and `openpyxl`.
+### Dataset Management Features
+- **Auto-Box:** Double-click or press `Spacebar` to instantly place a default-sized box at your cursor.
+- **Dataset Switcher:** Use the dropdown in the sidebar to switch between viewing your `Train`, `Validation`, and `Excluded` image sets.
+- **Move/Exclude:** Use the sidebar buttons to instantly move an image (and its label data) between the Train, Validation, or Excluded folders. Excluded images are safely hidden and ignored during training.
 
 ---
 
-## Dataset Preparation
-
-### Annotation Tools
-
-Use **[CVAT](https://www.cvat.ai/)** or **[Roboflow](https://roboflow.com/)** to draw bounding boxes around every pollen grain.
-
-### Export Format
-
-Export annotations in **YOLO format** — one `.txt` file per image with the same base-name:
-
-```
-<class_id> <x_center> <y_center> <width> <height>
-```
-
-All values are normalised to `[0, 1]`.  For single-class detection, `class_id` is always `0`.
-
-### Folder Layout
-
-```
-datasets/
-├── images/
-│   ├── train/
-│   │   ├── slide_001.jpg
-│   │   ├── slide_002.jpg
-│   │   └── ...
-│   └── val/
-│       ├── slide_050.jpg
-│       └── ...
-└── labels/
-    ├── train/
-    │   ├── slide_001.txt
-    │   ├── slide_002.txt
-    │   └── ...
-    └── val/
-        ├── slide_050.txt
-        └── ...
-```
-
----
-
-## Training
+## 🏋️ Training Pipeline
 
 ```bash
-python scripts/train.py
+python scripts/train.py --model yolo11n.pt --device 0 --epochs 100 --batch 20 --imgsz 1024
 ```
 
 ### Key Options
 
 | Flag | Default | Description |
 |---|---|---|
-| `--epochs` | 150 | Training epochs |
-| `--batch` | 16 | Batch size (lower for small GPUs) |
-| `--imgsz` | 640 | Input image resolution |
+| `--epochs` | 100 | Training epochs (Stop early if it overfits) |
+| `--batch` | 20 | Batch size (Lower if CUDA OutOfMemoryError occurs) |
+| `--imgsz` | 1024 | Input resolution (1024 is the current sweet spot) |
 | `--device` | `0` | GPU device (`cpu` for CPU-only) |
-| `--resume` | — | Resume from last checkpoint |
 
-### Augmentation Strategy
-
-> **Geometric augmentations are enabled; colour augmentations are disabled.**
-
-| Augmentation | Setting | Rationale |
-|---|---|---|
-| Rotation (±180°) | ✅ | Pollen is rotationally symmetric |
-| Horizontal flip | ✅ 0.5 | Orientation-invariant |
-| Vertical flip | ✅ 0.5 | Microscopy has no vertical preference |
-| Scale (±20%) | ✅ | Simulates magnification variance |
-| Mosaic | ✅ 1.0 | Geometric composition |
-| HSV hue | ❌ 0.0 | Preserves anthocyanin colour data |
-| HSV saturation | ❌ 0.0 | Preserves anthocyanin colour data |
-| HSV brightness | ❌ 0.0 | Prevents washing out colour cues |
-| Mixup | ❌ 0.0 | Would blend colours, corrupting signal |
-
-Brightness and contrast alterations are **strictly excluded** because the C2PSA spatial attention mechanism depends on authentic anthocyanin pigmentation to distinguish pollen from debris.
+*Note: The script automatically runs a Validation step using the best weights after training completes.*
 
 ---
 
-## Inference & Counting
+## 🔬 Inference & Counting
 
-Place your microscopy images in `input_images/`, then run:
+Place your un-annotated microscopy images in `input_images/`, then run:
 
 ```bash
 python scripts/count_pollen.py
 ```
 
-### Key Options
-
-| Flag | Default | Description |
-|---|---|---|
-| `--input` | `input_images/` | Folder of images to count |
-| `--output` | `output/` | Destination for XLSX & annotated images |
-| `--weights` | `runs/detect/train/weights/best.pt` | Trained model weights |
-| `--conf` | 0.25 | Confidence threshold |
-| `--save-images` | — | Save images with bounding boxes drawn |
-
-### Output: `pollen_counts.xlsx`
-
-**Summary Sheet** — one row per image:
-
-| filename | pollen_count | avg_confidence | min_confidence | max_confidence | image_width | image_height | timestamp |
-|---|---|---|---|---|---|---|---|
-| slide_001.jpg | 47 | 0.8821 | 0.3012 | 0.9734 | 2048 | 1536 | 2026-07-16T11:30:00 |
-
-**Detections Sheet** — one row per bounding box:
-
-| filename | detection_id | x_center | y_center | width | height | confidence |
-|---|---|---|---|---|---|---|
-| slide_001.jpg | 1 | 512.5 | 384.0 | 28.3 | 26.7 | 0.9734 |
+The script will:
+1. Detect all pollen grains.
+2. Draw a semi-transparent text overlay with the total count in the center of the output image.
+3. Generate random-colored bounding boxes for clear visibility of overlapping grains (no text labels on boxes).
+4. Save the annotated images and a comprehensive `pollen_counts.xlsx` report to `output/`.
 
 ---
 
-## License
+## 📂 Project Structure
 
-This project is provided as-is for academic and research use.
+```text
+PollenCounter-ObjectDetection-YOLO/
+├── config/
+│   └── pollen_dataset.yaml       # Dataset paths & class names
+├── datasets/
+│   ├── images/
+│   │   ├── train/                
+│   │   ├── val/                  
+│   │   └── excluded/             # Images hidden from training
+│   └── labels/
+│       ├── train/                
+│       ├── val/                  
+│       └── excluded/             
+├── input_images/                 # Images for batch inference
+├── output/                       # XLSX reports & annotated images
+├── scripts/
+│   ├── train.py                  # Training launcher
+│   ├── count_pollen.py           # Batch inference + XLSX export
+│   └── annotate.py               # GUI Annotation Tool
+└── README.md
+```

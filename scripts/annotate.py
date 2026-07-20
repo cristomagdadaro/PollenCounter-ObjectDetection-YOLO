@@ -37,6 +37,8 @@ DEFAULT_IMAGES = PROJECT_ROOT / "datasets" / "images" / "train"
 DEFAULT_LABELS = PROJECT_ROOT / "datasets" / "labels" / "train"
 VAL_IMAGES = PROJECT_ROOT / "datasets" / "images" / "val"
 VAL_LABELS = PROJECT_ROOT / "datasets" / "labels" / "val"
+EXCLUDED_IMAGES = PROJECT_ROOT / "datasets" / "images" / "excluded"
+EXCLUDED_LABELS = PROJECT_ROOT / "datasets" / "labels" / "excluded"
 
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".webp"}
 
@@ -106,14 +108,22 @@ class AnnotationApp:
         # Ensure val dirs exist
         VAL_IMAGES.mkdir(parents=True, exist_ok=True)
         VAL_LABELS.mkdir(parents=True, exist_ok=True)
+        EXCLUDED_IMAGES.mkdir(parents=True, exist_ok=True)
+        EXCLUDED_LABELS.mkdir(parents=True, exist_ok=True)
+
+        self.set_paths = {
+            "Train": (DEFAULT_IMAGES, DEFAULT_LABELS),
+            "Validation": (VAL_IMAGES, VAL_LABELS),
+            "Excluded": (EXCLUDED_IMAGES, EXCLUDED_LABELS)
+        }
+        self.current_set = "Train"
 
         # ── Image list ──────────────────────────────────────────────
         self.image_paths: list[Path] = sorted(
             p for p in self.images_dir.iterdir() if p.suffix.lower() in IMAGE_EXTS
         )
         if not self.image_paths:
-            messagebox.showerror("No Images", f"No images found in:\n{self.images_dir}")
-            sys.exit(1)
+            print(f"[WARN] No images found in {self.images_dir}")
 
         self.current_idx = 0
         self.boxes: list[BoundingBox] = []
@@ -188,11 +198,24 @@ class AnnotationApp:
         sidebar.pack(side=tk.RIGHT, fill=tk.Y, padx=(4, 8), pady=8)
         sidebar.pack_propagate(False)
 
+        # ── Sidebar: Dataset Set Selection ──────────────────────────
+        tk.Label(
+            sidebar, text="Dataset Set", font=("Segoe UI", 11, "bold"),
+            bg=SIDEBAR_BG, fg=ACCENT
+        ).pack(anchor=tk.W, padx=12, pady=(16, 2))
+        
+        self.dataset_combo = ttk.Combobox(sidebar, values=["Train", "Validation", "Excluded"], state="readonly", font=("Segoe UI", 10))
+        self.dataset_combo.set(self.current_set)
+        self.dataset_combo.pack(fill=tk.X, padx=12, pady=(0, 8))
+        self.dataset_combo.bind("<<ComboboxSelected>>", self._change_dataset)
+
+        tk.Frame(sidebar, bg="#444466", height=1).pack(fill=tk.X, padx=12, pady=4)
+
         # ── Sidebar: file info ──────────────────────────────────────
         tk.Label(
             sidebar, text="Current Image", font=("Segoe UI", 11, "bold"),
             bg=SIDEBAR_BG, fg=ACCENT
-        ).pack(anchor=tk.W, padx=12, pady=(16, 2))
+        ).pack(anchor=tk.W, padx=12, pady=(8, 2))
 
         self.file_label = tk.Label(
             sidebar, text="", font=("Consolas", 10), bg=SIDEBAR_BG, fg=TEXT_COLOR,
@@ -289,11 +312,30 @@ class AnnotationApp:
         )
         self.clear_btn.pack(pady=2)
 
-        self.val_btn = tk.Button(
-            sidebar, text="📦  Move to Validation", bg="#2563EB", fg="white",
-            activebackground="#1D4ED8", command=self._move_to_val, **btn_style
+        tk.Frame(sidebar, bg="#444466", height=1).pack(fill=tk.X, padx=12, pady=8)
+
+        tk.Label(
+            sidebar, text="Dataset Management", font=("Segoe UI", 11, "bold"),
+            bg=SIDEBAR_BG, fg=ACCENT
+        ).pack(anchor=tk.W, padx=12, pady=(4, 2))
+
+        self.move_train_btn = tk.Button(
+            sidebar, text="Move to Train", bg="#059669", fg="white",
+            activebackground="#047857", command=lambda: self._move_image("Train"), **btn_style
         )
-        self.val_btn.pack(pady=2)
+        self.move_train_btn.pack(pady=2)
+
+        self.move_val_btn = tk.Button(
+            sidebar, text="Move to Validation", bg="#2563EB", fg="white",
+            activebackground="#1D4ED8", command=lambda: self._move_image("Validation"), **btn_style
+        )
+        self.move_val_btn.pack(pady=2)
+
+        self.exclude_btn = tk.Button(
+            sidebar, text="Exclude Image", bg="#9CA3AF", fg="black",
+            activebackground="#6B7280", command=lambda: self._move_image("Excluded"), **btn_style
+        )
+        self.exclude_btn.pack(pady=2)
 
         # ── Status bar ──────────────────────────────────────────────
         self.status = tk.Label(
@@ -329,6 +371,9 @@ class AnnotationApp:
 
     def _load_image(self):
         """Load current image and its existing labels."""
+        if not self.image_paths:
+            return
+            
         path = self.image_paths[self.current_idx]
 
         # Load with PIL
@@ -427,7 +472,7 @@ class AnnotationApp:
 
     def _on_canvas_resize(self, event):
         """Re-render when canvas is resized."""
-        if self.image_paths:
+        if self.image_paths and self.pil_img:
             self._render_image()
 
     # ════════════════════════════════════════════════════════════════
@@ -630,7 +675,17 @@ class AnnotationApp:
 
     def _save_labels(self):
         """Save current boxes to YOLO .txt file."""
+        if not self.image_paths:
+            return
+            
         label_path = self._label_path()
+        
+        # Only save if there are boxes, or delete the file if there are none to clean up
+        if not self.boxes:
+            if label_path.exists():
+                label_path.unlink()
+            return
+            
         with open(label_path, "w") as f:
             for box in self.boxes:
                 f.write(box.to_yolo_line() + "\n")
@@ -640,13 +695,13 @@ class AnnotationApp:
     # ════════════════════════════════════════════════════════════════
 
     def _next_image(self):
-        if self.current_idx < len(self.image_paths) - 1:
+        if self.image_paths and self.current_idx < len(self.image_paths) - 1:
             self._save_labels()
             self.current_idx += 1
             self._load_image()
 
     def _prev_image(self):
-        if self.current_idx > 0:
+        if self.image_paths and self.current_idx > 0:
             self._save_labels()
             self.current_idx -= 1
             self._load_image()
@@ -672,43 +727,91 @@ class AnnotationApp:
                 self._update_ui()
                 self.status.config(text="🗑 All boxes cleared")
 
-    def _move_to_val(self):
-        """Move the current image (and its label) to the validation set."""
+    def _change_dataset(self, event):
+        new_set = self.dataset_combo.get()
+        if new_set == self.current_set:
+            return
+        
+        if self.image_paths:
+            self._save_labels()
+            
+        self.current_set = new_set
+        self.images_dir, self.labels_dir = self.set_paths[self.current_set]
+        
+        self.image_paths = sorted(
+            p for p in self.images_dir.iterdir() if p.suffix.lower() in IMAGE_EXTS
+        )
+        
+        self.current_idx = 0
+        if not self.image_paths:
+            self.canvas.delete("all")
+            self.pil_img = None
+            self.boxes.clear()
+            self._update_ui()
+            return
+            
+        self._load_image()
+
+    def _move_image(self, target_set):
+        """Move the current image (and its label) to the selected set."""
+        if not self.image_paths or self.current_set == target_set:
+            return
+
         img_path = self.image_paths[self.current_idx]
         label_path = self._label_path()
-
         name = img_path.name
-        if messagebox.askyesno("Move to Validation", f"Move '{name}' to validation set?"):
+        
+        target_img_dir, target_label_dir = self.set_paths[target_set]
+
+        if messagebox.askyesno(f"Move to {target_set}", f"Move '{name}' to {target_set}?"):
             # Move image
-            dest_img = VAL_IMAGES / img_path.name
+            dest_img = target_img_dir / img_path.name
             shutil.move(str(img_path), str(dest_img))
 
             # Move label if exists
             if label_path.exists():
-                dest_label = VAL_LABELS / label_path.name
+                dest_label = target_label_dir / label_path.name
                 shutil.move(str(label_path), str(dest_label))
 
             # Remove from list
             self.image_paths.pop(self.current_idx)
 
             if not self.image_paths:
-                messagebox.showinfo("Done", "All images have been moved or annotated!")
-                self.root.destroy()
+                self.canvas.delete("all")
+                self.pil_img = None
+                self.boxes.clear()
+                self._update_ui()
+                messagebox.showinfo("Empty Set", f"All images in {self.current_set} have been moved.")
                 return
 
             if self.current_idx >= len(self.image_paths):
                 self.current_idx = len(self.image_paths) - 1
 
             self._load_image()
-            self.status.config(text=f"📦 '{name}' moved to validation set")
+            self.status.config(text=f"📦 '{name}' moved to {target_set}")
 
     # ════════════════════════════════════════════════════════════════
     #  UI UPDATES
     # ════════════════════════════════════════════════════════════════
 
     def _update_ui(self):
-        img_path = self.image_paths[self.current_idx]
         total = len(self.image_paths)
+        if total == 0:
+            self.file_label.config(text="")
+            self.size_label.config(text="")
+            self.count_label.config(text="Boxes: 0")
+            self.progress_label.config(text=f"0/0  •  0 annotated")
+            self.root.title(f"🔬 Pollen Annotator — {self.current_set} (Empty)")
+            
+            self.prev_btn.config(state=tk.DISABLED)
+            self.next_btn.config(state=tk.DISABLED)
+            if hasattr(self, 'move_train_btn'):
+                self.move_train_btn.config(state=tk.DISABLED)
+                self.move_val_btn.config(state=tk.DISABLED)
+                self.exclude_btn.config(state=tk.DISABLED)
+            return
+
+        img_path = self.image_paths[self.current_idx]
         idx = self.current_idx + 1
 
         # Count how many images already have labels
@@ -722,11 +825,16 @@ class AnnotationApp:
         self.size_label.config(text=f"{self.orig_w} × {self.orig_h} px")
         self.count_label.config(text=f"Boxes: {len(self.boxes)}")
         self.progress_label.config(text=f"Image {idx}/{total}  •  {annotated} annotated")
-        self.root.title(f"🔬 Pollen Annotator — {img_path.name} [{idx}/{total}]")
+        self.root.title(f"🔬 Pollen Annotator — {self.current_set}: {img_path.name} [{idx}/{total}]")
 
         # Button states
         self.prev_btn.config(state=tk.NORMAL if self.current_idx > 0 else tk.DISABLED)
         self.next_btn.config(state=tk.NORMAL if self.current_idx < total - 1 else tk.DISABLED)
+        
+        if hasattr(self, 'move_train_btn'):
+            self.move_train_btn.config(state=tk.DISABLED if self.current_set == "Train" else tk.NORMAL)
+            self.move_val_btn.config(state=tk.DISABLED if self.current_set == "Validation" else tk.NORMAL)
+            self.exclude_btn.config(state=tk.DISABLED if self.current_set == "Excluded" else tk.NORMAL)
 
 
 def parse_args() -> argparse.Namespace:
