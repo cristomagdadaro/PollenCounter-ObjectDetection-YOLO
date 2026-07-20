@@ -896,6 +896,16 @@ class AnnotationApp:
         name = img_path.name
         
         target_img_dir, target_label_dir = self.set_paths[target_set]
+        
+        # Check for overwrite
+        target_img_path = target_img_dir / name
+        if target_img_path.exists():
+            if not messagebox.askyesno(
+                "Overwrite Warning", 
+                f"The file '{name}' already exists in the {target_set} set!\n\nIf you proceed, the existing file and its labels will be permanently overwritten.\n\nDo you want to overwrite it?",
+                icon="warning"
+            ):
+                return
 
         if messagebox.askyesno(f"Move to {target_set}", f"Move '{name}' to {target_set}?"):
             # Move image
