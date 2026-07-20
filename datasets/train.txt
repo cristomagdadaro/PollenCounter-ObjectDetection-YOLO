@@ -21,9 +21,11 @@ C:/laragon/www/PollenCounter-ObjectDetection-YOLO/datasets/images/train/160_9_po
 C:/laragon/www/PollenCounter-ObjectDetection-YOLO/datasets/images/train/1762_3_Pollen_2July2025_1.2x_I2KI.jpg
 C:/laragon/www/PollenCounter-ObjectDetection-YOLO/datasets/images/train/1762_5_Pollen_2July2025_1.2x_I2KI.jpg
 C:/laragon/www/PollenCounter-ObjectDetection-YOLO/datasets/images/train/2054_1_pollen_2July2025_1.2x_I2KI.jpg
+C:/laragon/www/PollenCounter-ObjectDetection-YOLO/datasets/images/train/2054_6_pollen_2July2025_1.2x_I2KI.jpg
 C:/laragon/www/PollenCounter-ObjectDetection-YOLO/datasets/images/train/2054_7_pollen_2July2025_1.2x_I2KI - Copy.jpg
 C:/laragon/www/PollenCounter-ObjectDetection-YOLO/datasets/images/train/2104_3_Pollen_2July2025_1.2x_I2KI.jpg
 C:/laragon/www/PollenCounter-ObjectDetection-YOLO/datasets/images/train/2104_9_Pollen_2July2025_1.2x_I2KI.jpg
+C:/laragon/www/PollenCounter-ObjectDetection-YOLO/datasets/images/train/216_1_pollen_11June2025_1.5x.jpg
 C:/laragon/www/PollenCounter-ObjectDetection-YOLO/datasets/images/train/216_3_pollen_11June2025_1.5x.jpg
 C:/laragon/www/PollenCounter-ObjectDetection-YOLO/datasets/images/train/216_9_pollen_11June2025_1.5x.jpg
 C:/laragon/www/PollenCounter-ObjectDetection-YOLO/datasets/images/train/222_1_pollen_10June2025_1.5x.jpg
@@ -32,7 +34,10 @@ C:/laragon/www/PollenCounter-ObjectDetection-YOLO/datasets/images/train/222_9_po
 C:/laragon/www/PollenCounter-ObjectDetection-YOLO/datasets/images/train/240_6_pollen_9June2025__1.5x_.jpg
 C:/laragon/www/PollenCounter-ObjectDetection-YOLO/datasets/images/train/240_8_pollen_9June2025__1.5x_.jpg
 C:/laragon/www/PollenCounter-ObjectDetection-YOLO/datasets/images/train/392_1_Pollen_10July2025_1.2x_I2KI.jpg
+C:/laragon/www/PollenCounter-ObjectDetection-YOLO/datasets/images/train/392_3_Pollen_10July2025_1.2x_I2KI.jpg
 C:/laragon/www/PollenCounter-ObjectDetection-YOLO/datasets/images/train/392_4_Pollen_10July2025_1.2x_I2KI.jpg
+C:/laragon/www/PollenCounter-ObjectDetection-YOLO/datasets/images/train/392_7_Pollen_10July2025_1.2x_I2KI.jpg
+C:/laragon/www/PollenCounter-ObjectDetection-YOLO/datasets/images/train/392_8_Pollen_10July2025_1.2x_I2KI.jpg
 C:/laragon/www/PollenCounter-ObjectDetection-YOLO/datasets/images/train/402_4_pollen_5June2025_1.5x.jpg
 C:/laragon/www/PollenCounter-ObjectDetection-YOLO/datasets/images/train/402_5_pollen_5June2025_1.5x.jpg
 C:/laragon/www/PollenCounter-ObjectDetection-YOLO/datasets/images/train/402_6_pollen_5June2025_1.5x.jpg
