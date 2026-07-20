@@ -90,7 +90,7 @@ def run_inference(
         if img is None: continue
         img_h, img_w = img.shape[:2]
 
-        results = model.predict(source=str(img_path), conf=conf, iou=0.5, imgsz=imgsz, device=device, verbose=False)
+        results = model.predict(source=str(img_path), conf=conf, iou=0.5, imgsz=imgsz, device=device, max_det=5000, verbose=False)
         boxes = results[0].boxes
         n_detections = len(boxes)
         confidences = boxes.conf.cpu().tolist() if n_detections > 0 else []
