@@ -76,7 +76,7 @@ def main():
             source=str(img_path),
             conf=args.conf,
             iou=0.5,
-            uoimgsz=args.imgsz,
+            imgsz=args.imgsz,
             verbose=False
         )
         

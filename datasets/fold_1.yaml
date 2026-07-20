@@ -1,0 +1,5 @@
+names:
+  0: pollen
+path: ./datasets
+train: C:\laragon\www\PollenCounter-ObjectDetection-YOLO\datasets\fold_1_train.txt
+val: C:\laragon\www\PollenCounter-ObjectDetection-YOLO\datasets\fold_1_val.txt
