@@ -68,7 +68,7 @@ python scripts/annotate.py
 ## 🏋️ Training Pipeline
 
 ```bash
-python scripts/train.py --model yolo11n.pt --device 0 --epochs 100 --batch 20 --imgsz 1024
+python scripts/train.py --model yolo11n.pt --device 0 --epochs 100 --batch 20 --imgsz 1024 --kfolds 5
 ```
 
 ### Key Options
@@ -79,6 +79,7 @@ python scripts/train.py --model yolo11n.pt --device 0 --epochs 100 --batch 20 --
 | `--batch` | 20 | Batch size (Lower if CUDA OutOfMemoryError occurs) |
 | `--imgsz` | 1024 | Input resolution (1024 is the current sweet spot) |
 | `--device` | `0` | GPU device (`cpu` for CPU-only) |
+| `--kfolds` | 1 | Number of folds for K-fold cross-validation (Default: 1 for standard training, 5 for robust evaluation) |
 
 *Note: The script automatically runs a Validation step using the best weights after training completes.*
 

@@ -100,7 +100,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _generate_annotated_image_lists(dataset_root: Path) -> None:
+def _generate_annotated_image_lists(dataset_root: Path, batch_size: int) -> None:
     """Generate train.txt and val.txt containing only images that have annotations."""
     for split in ["train", "val"]:
         labels_dir = dataset_root / "labels" / split
@@ -119,6 +119,11 @@ def _generate_annotated_image_lists(dataset_root: Path) -> None:
                     if img_path.exists():
                         annotated_images.append(str(img_path.absolute()).replace("\\", "/"))
                         break
+                        
+        # Pad to prevent BatchNorm crash if remainder is 1
+        if split == "train" and len(annotated_images) > 0 and (len(annotated_images) % batch_size == 1):
+            annotated_images.append(annotated_images[0])
+            print(f"[INFO] Padded train dataset with 1 image to prevent BatchNorm crash.")
                         
         with open(list_file, "w") as f:
             for img in annotated_images:
@@ -141,7 +146,7 @@ def main() -> None:
         print(f"\n[INFO] Starting {args.kfold}-Fold Cross Validation...")
         _run_kfold(args, dataset_root)
     else:
-        _generate_annotated_image_lists(dataset_root)
+        _generate_annotated_image_lists(dataset_root, args.batch)
         _run_standard_training(args, data_path)
 
 
@@ -186,7 +191,7 @@ def _run_standard_training(args, data_path):
         hsv_v=0.2,
         mixup=0.1,
         copy_paste=0.0,
-        workers=8,
+        workers=0,
         max_det=1000,
         close_mosaic=0,
         multi_scale=True,
@@ -246,6 +251,10 @@ def _run_kfold(args, dataset_root):
         val_images = all_annotated_images[val_start:val_end]
         train_images = all_annotated_images[:val_start] + all_annotated_images[val_end:]
         
+        # Pad to prevent BatchNorm crash if remainder is 1
+        if len(train_images) > 0 and (len(train_images) % args.batch == 1):
+            train_images.append(train_images[0])
+        
         train_txt = dataset_root / f"fold_{i}_train.txt"
         val_txt = dataset_root / f"fold_{i}_val.txt"
         
@@ -285,7 +294,7 @@ def _run_kfold(args, dataset_root):
             hsv_v=0.2,
             mixup=0.1,
             copy_paste=0.0,
-            workers=8,
+            workers=0,
             max_det=1000,
             close_mosaic=0,
             multi_scale=True,
