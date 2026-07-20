@@ -91,6 +91,22 @@ class BoundingBox:
             int(py + ph / 2),
         )
 
+    def iou(self, other: "BoundingBox") -> float:
+        """Calculate Intersection over Union (IoU) with another box."""
+        x_left = max(self.x_center - self.w / 2, other.x_center - other.w / 2)
+        y_top = max(self.y_center - self.h / 2, other.y_center - other.h / 2)
+        x_right = min(self.x_center + self.w / 2, other.x_center + other.w / 2)
+        y_bottom = min(self.y_center + self.h / 2, other.y_center + other.h / 2)
+        
+        if x_right < x_left or y_bottom < y_top:
+            return 0.0
+            
+        intersection = (x_right - x_left) * (y_bottom - y_top)
+        area1 = self.w * self.h
+        area2 = other.w * other.h
+        
+        return intersection / (area1 + area2 - intersection)
+
 
 class AnnotationApp:
     """Main tkinter annotation application."""
@@ -99,10 +115,11 @@ class AnnotationApp:
     MAX_CANVAS_W = 960
     MAX_CANVAS_H = 720
 
-    def __init__(self, root: tk.Tk, images_dir: Path, labels_dir: Path):
+    def __init__(self, root: tk.Tk, images_dir: Path, labels_dir: Path, compare_labels_dir: Optional[Path] = None):
         self.root = root
         self.images_dir = images_dir
         self.labels_dir = labels_dir
+        self.compare_labels_dir = compare_labels_dir
         self.labels_dir.mkdir(parents=True, exist_ok=True)
 
         # Ensure val dirs exist
@@ -116,7 +133,12 @@ class AnnotationApp:
             "Validation": (VAL_IMAGES, VAL_LABELS),
             "Excluded": (EXCLUDED_IMAGES, EXCLUDED_LABELS)
         }
-        self.current_set = "Train"
+        
+        self.current_set = "Custom"
+        for name, (img_dir, _) in self.set_paths.items():
+            if self.images_dir.resolve() == img_dir.resolve():
+                self.current_set = name
+                break
 
         # ── Image list ──────────────────────────────────────────────
         self.image_paths: list[Path] = sorted(
@@ -127,6 +149,7 @@ class AnnotationApp:
 
         self.current_idx = 0
         self.boxes: list[BoundingBox] = []
+        self.compare_boxes: list[BoundingBox] = []
         self.canvas_ids: list[int] = []  # canvas rectangle IDs
 
         # ── Drawing state ───────────────────────────────────────────
@@ -154,7 +177,7 @@ class AnnotationApp:
     # ════════════════════════════════════════════════════════════════
 
     def _build_ui(self):
-        self.root.title("🔬 Pollen Annotator — YOLOv26")
+        self.root.title("🔬 Pollen Annotator — YOLOv11s")
         self.root.configure(bg=BG_COLOR)
         self.root.minsize(1100, 700)
 
@@ -204,7 +227,11 @@ class AnnotationApp:
             bg=SIDEBAR_BG, fg=ACCENT
         ).pack(anchor=tk.W, padx=12, pady=(16, 2))
         
-        self.dataset_combo = ttk.Combobox(sidebar, values=["Train", "Validation", "Excluded"], state="readonly", font=("Segoe UI", 10))
+        combo_values = ["Train", "Validation", "Excluded"]
+        if self.current_set not in combo_values:
+            combo_values.append(self.current_set)
+            
+        self.dataset_combo = ttk.Combobox(sidebar, values=combo_values, state="readonly", font=("Segoe UI", 10))
         self.dataset_combo.set(self.current_set)
         self.dataset_combo.pack(fill=tk.X, padx=12, pady=(0, 8))
         self.dataset_combo.bind("<<ComboboxSelected>>", self._change_dataset)
@@ -236,6 +263,18 @@ class AnnotationApp:
             bg=SIDEBAR_BG, fg=BOX_COLOR
         )
         self.count_label.pack(pady=12)
+        
+        # ── Sidebar: comparison toggle ──────────────────────────────
+        self.show_compare = tk.BooleanVar(value=True)
+        self.chk_compare = tk.Checkbutton(
+            sidebar, text="Show Comparison", variable=self.show_compare,
+            bg=SIDEBAR_BG, fg=TEXT_COLOR, selectcolor=BG_COLOR,
+            activebackground=SIDEBAR_BG, activeforeground=TEXT_COLOR,
+            command=self._redraw_boxes
+        )
+        self.chk_compare.pack(pady=(0, 12))
+        if not hasattr(self, 'compare_labels_dir') or not self.compare_labels_dir:
+            self.chk_compare.config(state=tk.DISABLED)
 
         # ── Sidebar: auto box size ──────────────────────────────────
         tk.Frame(sidebar, bg="#444466", height=1).pack(fill=tk.X, padx=12, pady=4)
@@ -390,6 +429,17 @@ class AnnotationApp:
                     box = BoundingBox.from_yolo_line(line)
                     if box:
                         self.boxes.append(box)
+                        
+        # ── Load comparison labels ──────────────────────────────────
+        self.compare_boxes.clear()
+        if hasattr(self, 'compare_labels_dir') and self.compare_labels_dir:
+            comp_path = self.compare_labels_dir / f"{path.stem}.txt"
+            if comp_path.exists():
+                with open(comp_path, "r") as f:
+                    for line in f:
+                        box = BoundingBox.from_yolo_line(line)
+                        if box:
+                            self.compare_boxes.append(box)
 
         self._update_size_entries()
         self._render_image()
@@ -646,6 +696,24 @@ class AnnotationApp:
             self.canvas.delete(cid)
         self.canvas_ids.clear()
 
+        # Draw comparison boxes if enabled
+        if hasattr(self, 'compare_labels_dir') and self.compare_labels_dir and self.show_compare.get():
+            for box in self.compare_boxes:
+                x1_n = box.x_center - box.w / 2
+                y1_n = box.y_center - box.h / 2
+                x2_n = box.x_center + box.w / 2
+                y2_n = box.y_center + box.h / 2
+
+                cx1, cy1 = self._norm_to_canvas(x1_n, y1_n)
+                cx2, cy2 = self._norm_to_canvas(x2_n, y2_n)
+
+                rect_id = self.canvas.create_rectangle(
+                    cx1, cy1, cx2, cy2,
+                    outline="#00FFFF", width=2, dash=(4, 4)
+                )
+                self.canvas_ids.append(rect_id)
+
+        # Draw primary editable boxes
         for i, box in enumerate(self.boxes):
             x1_n = box.x_center - box.w / 2
             y1_n = box.y_center - box.h / 2
@@ -655,9 +723,15 @@ class AnnotationApp:
             cx1, cy1 = self._norm_to_canvas(x1_n, y1_n)
             cx2, cy2 = self._norm_to_canvas(x2_n, y2_n)
 
+            # Sanity checks for annotation errors
+            is_microscopic = box.w < 0.005 or box.h < 0.005
+            is_massive = box.w > 0.5 or box.h > 0.5
+            color = "#FF0000" if (is_microscopic or is_massive) else BOX_COLOR
+            outline_w = 4 if (is_microscopic or is_massive) else 2
+
             rect_id = self.canvas.create_rectangle(
                 cx1, cy1, cx2, cy2,
-                outline=BOX_COLOR, width=2
+                outline=color, width=outline_w
             )
             self.canvas_ids.append(rect_id)
 
@@ -665,7 +739,7 @@ class AnnotationApp:
             label_id = self.canvas.create_text(
                 cx1 + 3, cy1 - 10,
                 text=f"#{i + 1}", anchor=tk.NW,
-                font=("Consolas", 8, "bold"), fill=BOX_COLOR
+                font=("Consolas", 8, "bold"), fill=color
             )
             self.canvas_ids.append(label_id)
 
@@ -673,11 +747,29 @@ class AnnotationApp:
     #  SAVE / LOAD
     # ════════════════════════════════════════════════════════════════
 
+    def _clean_duplicates(self):
+        """Remove boxes that overlap by more than 80% with another box."""
+        if len(self.boxes) < 2:
+            return
+            
+        to_remove = set()
+        for i in range(len(self.boxes)):
+            if i in to_remove: continue
+            for j in range(i + 1, len(self.boxes)):
+                if j in to_remove: continue
+                if self.boxes[i].iou(self.boxes[j]) > 0.8:
+                    to_remove.add(j)
+                    
+        if to_remove:
+            self.boxes = [b for i, b in enumerate(self.boxes) if i not in to_remove]
+            print(f"[INFO] Removed {len(to_remove)} highly overlapping duplicate boxes.")
+            
     def _save_labels(self):
         """Save current boxes to YOLO .txt file."""
         if not self.image_paths:
             return
             
+        self._clean_duplicates()
         label_path = self._label_path()
         
         # Only save if there are boxes, or delete the file if there are none to clean up
@@ -841,6 +933,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Annotate pollen images with bounding boxes.")
     parser.add_argument("--images", type=str, default=str(DEFAULT_IMAGES), help="Folder of images to annotate.")
     parser.add_argument("--labels", type=str, default=str(DEFAULT_LABELS), help="Folder to save YOLO labels.")
+    parser.add_argument("--compare-labels", type=str, default=None, help="Folder containing secondary labels to overlay for comparison.")
     return parser.parse_args()
 
 
@@ -854,6 +947,7 @@ def main():
         root,
         images_dir=Path(args.images),
         labels_dir=Path(args.labels),
+        compare_labels_dir=Path(args.compare_labels) if args.compare_labels else None,
     )
 
     root.mainloop()

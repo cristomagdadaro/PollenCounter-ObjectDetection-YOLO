@@ -4,7 +4,7 @@ count_pollen.py — High-Volume Automated Pollen Counting (GUI & CLI)
 ===================================================================
 
 Batch-inference script that:
-  1. Loads a trained YOLOv26 model.
+  1. Loads a trained YOLOv11s model.
   2. Iterates over every image in the input folder.
   3. Counts YOLO-generated bounding boxes per image.
   4. Exports a structured data log to an .xlsx spreadsheet.
@@ -27,12 +27,13 @@ from tkinter import filedialog, messagebox, ttk
 import cv2
 import pandas as pd
 from ultralytics import YOLO
+from PIL import Image, ImageTk
 
 
 # ─── Project paths ──────────────────────────────────────────────────
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_INPUT = PROJECT_ROOT / "input_images"
-DEFAULT_OUTPUT = PROJECT_ROOT / "output"
+DEFAULT_INPUT = PROJECT_ROOT / "datasets" / "real"
+DEFAULT_OUTPUT = PROJECT_ROOT / "runs" / "detect" / "real"
 DEFAULT_WEIGHTS = PROJECT_ROOT / "runs" / "detect" / "train" / "weights" / "best.pt"
 
 # Supported image extensions
@@ -42,7 +43,7 @@ IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".webp"}
 def parse_args() -> argparse.Namespace:
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(
-        description="Count pollen grains in microscopy images using YOLOv26.",
+        description="Count pollen grains in microscopy images using YOLOv11s.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
@@ -72,7 +73,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--imgsz",
         type=int,
-        default=640,
+        default=1024,
         help="Inference image size (pixels).",
     )
     parser.add_argument(
@@ -138,7 +139,7 @@ def run_inference(
         results = model.predict(
             source=str(img_path),
             conf=conf,
-            iou=0.25,  # lower IOU prevents double-counting the same grain
+            iou=0.5,  # stricter IOU suppression for overlapping grains
             imgsz=imgsz,
             device=device,
             verbose=False,
@@ -242,6 +243,179 @@ def export_xlsx(
             df_detail.to_excel(writer, sheet_name="Detections", index=False)
 
 
+def show_results_viewer(parent, summary_rows, in_dir, out_dir):
+    if not summary_rows:
+        messagebox.showinfo("Info", "No results to display.")
+        return
+        
+    viewer = tk.Toplevel(parent)
+    viewer.title("Results Viewer")
+    viewer.geometry("1000x600")
+    
+    current_idx = [0]
+    
+    top_frame = ttk.Frame(viewer)
+    top_frame.pack(side=tk.TOP, fill=tk.X, pady=5)
+    
+    btn_prev = ttk.Button(top_frame, text="<< Previous")
+    btn_prev.pack(side=tk.LEFT, padx=10)
+    
+    zoom_enabled = tk.BooleanVar(value=True)
+    chk_zoom = ttk.Checkbutton(top_frame, text="Zoom on Hover", variable=zoom_enabled)
+    chk_zoom.pack(side=tk.LEFT, padx=10)
+    
+    lbl_info = ttk.Label(top_frame, text="", font=("TkDefaultFont", 12, "bold"))
+    lbl_info.pack(side=tk.LEFT, expand=True)
+    
+    btn_next = ttk.Button(top_frame, text="Next >>")
+    btn_next.pack(side=tk.RIGHT, padx=10)
+    
+    img_frame = ttk.Frame(viewer)
+    img_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=10)
+    
+    lbl_orig = ttk.Label(img_frame, text="Original")
+    lbl_orig.pack(side=tk.LEFT, expand=True, fill=tk.BOTH)
+    
+    lbl_annot = ttk.Label(img_frame, text="Annotated")
+    lbl_annot.pack(side=tk.RIGHT, expand=True, fill=tk.BOTH)
+    
+    bot_frame = ttk.Frame(viewer)
+    bot_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=10)
+    
+    lbl_meta = ttk.Label(bot_frame, text="", font=("TkDefaultFont", 11))
+    lbl_meta.pack()
+    
+    viewer_state = {
+        "orig_full": None,
+        "annot_full": None,
+        "orig_tk": None,
+        "annot_tk": None,
+        "orig_scale": 1.0,
+        "annot_scale": 1.0,
+        "zoom_tk": None,
+    }
+    
+    zoom_win = tk.Toplevel(viewer)
+    zoom_win.withdraw()
+    zoom_win.overrideredirect(True)
+    zoom_lbl = tk.Label(zoom_win, bd=2, relief="solid", bg="black")
+    zoom_lbl.pack()
+    
+    def handle_hover(event, img_type, lbl):
+        if not zoom_enabled.get():
+            zoom_win.withdraw()
+            return
+            
+        full_img = viewer_state.get(f"{img_type}_full")
+        tk_img = viewer_state.get(f"{img_type}_tk")
+        if not full_img or not tk_img:
+            return
+            
+        lbl_w = lbl.winfo_width()
+        lbl_h = lbl.winfo_height()
+        
+        img_w = tk_img.width()
+        img_h = tk_img.height()
+        
+        offset_x = (lbl_w - img_w) // 2
+        offset_y = (lbl_h - img_h) // 2
+        
+        img_x = event.x - offset_x
+        img_y = event.y - offset_y
+        
+        if img_x < 0 or img_x > img_w or img_y < 0 or img_y > img_h:
+            zoom_win.withdraw()
+            return
+            
+        scale = viewer_state[f"{img_type}_scale"]
+        full_x = int(img_x * scale)
+        full_y = int(img_y * scale)
+        
+        crop_size = 200
+        box = (full_x - crop_size//2, full_y - crop_size//2, full_x + crop_size//2, full_y + crop_size//2)
+        crop = full_img.crop(box)
+        
+        resample_filter = getattr(Image, 'Resampling', Image).LANCZOS
+        crop = crop.resize((crop_size * 2, crop_size * 2), resample_filter)
+        
+        viewer_state["zoom_tk"] = ImageTk.PhotoImage(crop)
+        zoom_lbl.config(image=viewer_state["zoom_tk"])
+        
+        cx = event.x_root + 20
+        cy = event.y_root + 20
+        zoom_win.geometry(f"+{cx}+{cy}")
+        zoom_win.deiconify()
+        zoom_win.lift()
+        
+    lbl_orig.bind("<Motion>", lambda e: handle_hover(e, "orig", lbl_orig))
+    lbl_orig.bind("<Leave>", lambda e: zoom_win.withdraw())
+    
+    lbl_annot.bind("<Motion>", lambda e: handle_hover(e, "annot", lbl_annot))
+    lbl_annot.bind("<Leave>", lambda e: zoom_win.withdraw())
+    
+    def update_view():
+        idx = current_idx[0]
+        row = summary_rows[idx]
+        filename = row["filename"]
+        
+        lbl_info.config(text=f"Image {idx+1} of {len(summary_rows)}: {filename}")
+        
+        meta_text = (f"Count: {row['pollen_count']}   |   "
+                     f"Avg Conf: {row['avg_confidence']:.2f}   |   "
+                     f"Min Conf: {row['min_confidence']:.2f}   |   "
+                     f"Max Conf: {row['max_confidence']:.2f}")
+        lbl_meta.config(text=meta_text)
+        
+        orig_path = in_dir / filename
+        annot_path = out_dir / "annotated" / filename
+        
+        viewer.update_idletasks()
+        w = max(400, (viewer.winfo_width() - 40) // 2)
+        h = max(400, viewer.winfo_height() - 150)
+        
+        resample_filter = getattr(Image, 'Resampling', Image).LANCZOS
+        
+        try:
+            viewer_state["orig_full"] = Image.open(orig_path)
+            orig_copy = viewer_state["orig_full"].copy()
+            orig_copy.thumbnail((w, h), resample_filter)
+            viewer_state["orig_tk"] = ImageTk.PhotoImage(orig_copy)
+            lbl_orig.config(image=viewer_state["orig_tk"], text="")
+            viewer_state["orig_scale"] = viewer_state["orig_full"].width / orig_copy.width
+        except Exception as e:
+            lbl_orig.config(image="", text="Original not found")
+            viewer_state["orig_full"] = None
+            
+        try:
+            viewer_state["annot_full"] = Image.open(annot_path)
+            annot_copy = viewer_state["annot_full"].copy()
+            annot_copy.thumbnail((w, h), resample_filter)
+            viewer_state["annot_tk"] = ImageTk.PhotoImage(annot_copy)
+            lbl_annot.config(image=viewer_state["annot_tk"], text="")
+            viewer_state["annot_scale"] = viewer_state["annot_full"].width / annot_copy.width
+        except Exception as e:
+            lbl_annot.config(image="", text="Annotated not found")
+            viewer_state["annot_full"] = None
+            
+        btn_prev.config(state=tk.NORMAL if idx > 0 else tk.DISABLED)
+        btn_next.config(state=tk.NORMAL if idx < len(summary_rows)-1 else tk.DISABLED)
+        
+    def go_prev():
+        if current_idx[0] > 0:
+            current_idx[0] -= 1
+            update_view()
+            
+    def go_next():
+        if current_idx[0] < len(summary_rows) - 1:
+            current_idx[0] += 1
+            update_view()
+            
+    btn_prev.config(command=go_prev)
+    btn_next.config(command=go_next)
+    
+    viewer.after(100, update_view)
+
+
 def run_cli(args):
     """Run via command line"""
     input_dir = Path(args.input)
@@ -285,7 +459,7 @@ def run_cli(args):
 def run_gui():
     """Run with Tkinter GUI"""
     root = tk.Tk()
-    root.title("Pollen Counter (YOLOv26)")
+    root.title("Pollen Counter (YOLOv11s)")
     root.geometry("600x480")
     
     style = ttk.Style()
@@ -366,6 +540,7 @@ def run_gui():
             return
             
         btn_run.config(state=tk.DISABLED)
+        btn_view.config(state=tk.DISABLED)
         log_text.config(state=tk.NORMAL)
         log_text.delete(1.0, tk.END)
         log_text.config(state=tk.DISABLED)
@@ -402,7 +577,7 @@ def run_gui():
                     model=model,
                     image_paths=images,
                     conf=conf,
-                    imgsz=640,
+                    imgsz=1024,
                     device=actual_dev,
                     save_annotated=save_img,
                     annotated_dir=annotated_dir,
@@ -412,7 +587,11 @@ def run_gui():
                 xlsx_path = out_dir / "pollen_counts.xlsx"
                 export_xlsx(summary, detail, xlsx_path)
                 
-                root.after(0, lambda: log(f"\nFinished! Processed {len(images)} images.\nResults saved to: {out_dir}"))
+                def on_finish():
+                    log(f"\nFinished! Processed {len(images)} images.\nResults saved to: {out_dir}")
+                    btn_view.config(state=tk.NORMAL, command=lambda: show_results_viewer(root, summary, in_dir, out_dir))
+                
+                root.after(0, on_finish)
             except Exception as e:
                 err_msg = str(e)
                 root.after(0, lambda m=err_msg: messagebox.showerror("Error", m))
@@ -422,8 +601,14 @@ def run_gui():
                 
         threading.Thread(target=task, daemon=True).start()
         
-    btn_run = ttk.Button(frame, text="Run Count", command=run_process)
-    btn_run.grid(row=7, column=1, pady=10)
+    btn_frame = ttk.Frame(frame)
+    btn_frame.grid(row=7, column=0, columnspan=3, pady=10)
+    
+    btn_run = ttk.Button(btn_frame, text="Run Count", command=run_process)
+    btn_run.pack(side=tk.LEFT, padx=10)
+    
+    btn_view = ttk.Button(btn_frame, text="View Results", state=tk.DISABLED)
+    btn_view.pack(side=tk.LEFT, padx=10)
     
     root.mainloop()
 

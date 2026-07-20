@@ -31,6 +31,7 @@ This project has evolved through continuous testing to optimise accuracy. Below 
 ### 5. Augmentation Strategy
 - **Geometric (Enabled):** Rotations (±180°), flips, and scaling simulate magnification variance and orientation since pollen is symmetrical.
 - **Colour (Enabled):** `hsv_h`, `hsv_s`, `hsv_v`, and `mixup` are **enabled**. This is critical because lighting conditions and I2KI staining shades vary wildly between different microscope slides. Colour augmentations force the model to look at the *shape* of the pollen, rather than memorising the exact shade of purple.
+- **Mosaic (Always On):** YOLO disables mosaic augmentation for the last 10 epochs by default (`close_mosaic=10`). Because our dataset is small (e.g. 63 images), we use `close_mosaic=0` to keep this critical augmentation active through the entire training run!
 
 ---
 
@@ -43,7 +44,7 @@ To ensure continuous improvement, log the results of every major training run he
 | **Jul 16** | 16 Train / 2 Val | `yolo11n.pt` | 1024 | 16 | 150 | **35.8%** | *Initial YOLO11 baseline. Good balance of speed and detail.* |
 | **Jul 16** | 16 Train / 2 Val | `yolo11n.pt` | 2048 | 4 | 150 | **33.1%** | *Massive VRAM usage (caused OOM at batch 24). Accuracy dropped due to microscopic noise and artifacts distracting the model.* |
 | **Jul 16** | 16 Train / 2 Val | `yolo11n.pt` | 768 | 24 | 150 | **31.1%** | *Downscaling too far caused loss of critical pollen grain details.* |
-| **Jul 20** | 16 Train / 2 Val | `yolo11n.pt` | 1024 | 20 | 100 | **TBD** | *Enabled HSV and Mixup augmentations to combat lighting variance across slides. Changed optimizer to `auto`.* |
+| **Jul 20** | 16 Train / 2 Val | `yolo11s.pt` | 1024 | 4 | 150 | **49.7%** | *Upgraded to YOLO11 Small, enabled multi_scale training, and tuned NMS for dense regions. Lowered batch size to 4 to prevent CUDA OOM. Massive improvement!* |
 
 *Remember to update this table every time a new dataset batch is annotated or a major training setting is changed!*
 

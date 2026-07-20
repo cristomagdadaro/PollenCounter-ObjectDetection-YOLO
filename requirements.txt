@@ -1,5 +1,5 @@
 # PollenCounter-ObjectDetection-YOLO
-# Python 3.10+ | YOLOv26 (yolo26n.pt)
+# Python 3.10+ | YOLOv11 (yolo11n.pt)
 #
 
 #

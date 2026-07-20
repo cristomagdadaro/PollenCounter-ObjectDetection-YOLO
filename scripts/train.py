@@ -1,42 +1,25 @@
 #!/usr/bin/env python3
 """
-train.py — YOLOv26 Pollen Detection Training Script
+train.py — YOLOv11s Pollen Detection Training Script
 =====================================================
 
-Trains a YOLOv26-Nano (yolo26n.pt) model on annotated pollen microscopy
-images.  Key design choices:
-
-  • NMS-free end-to-end inference — overlapping pollen in clumps are NOT
-    suppressed, which is critical for high-density slides.
-
-  • MuSGD optimizer (hybrid Muon-SGD) — YOLO26's native optimizer that
-    delivers rapid convergence on small scientific datasets.
-
-  • Geometric-ONLY augmentation — rotation, flipping, scaling, and mosaic
-    are enabled.  ALL colour augmentations (hsv_h, hsv_s, hsv_v, mixup)
-    are DISABLED to preserve anthocyanin pigmentation data that the
-    C2PSA (Cross-Stage Partial Spatial Attention) mechanism relies on to
-    discriminate pollen from background debris.
+Trains a YOLO model on annotated pollen microscopy images.
 
 Usage
 -----
     python scripts/train.py                          # defaults
     python scripts/train.py --epochs 300 --batch 8   # override
     python scripts/train.py --resume                 # resume interrupted run
-
-Prerequisites
--------------
-    1. Place training images   → datasets/images/train/
-    2. Place training labels   → datasets/labels/train/
-    3. Place validation images → datasets/images/val/
-    4. Place validation labels → datasets/labels/val/
-    Labels must be in YOLO .txt format (class x_center y_center w h).
+    python scripts/train.py --kfold 5                # run 5-fold cross validation
 """
 
 from __future__ import annotations
 
 import argparse
 import sys
+import random
+import yaml
+import shutil
 from pathlib import Path
 
 # pyrefly: ignore [missing-import]
@@ -46,13 +29,13 @@ from ultralytics import YOLO
 # ─── Project paths ──────────────────────────────────────────────────
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATASET_YAML = PROJECT_ROOT / "config" / "pollen_dataset.yaml"
-DEFAULT_MODEL = "yolo11m.pt"
+DEFAULT_MODEL = "yolo11s.pt"
 
 
 def parse_args() -> argparse.Namespace:
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(
-        description="Train YOLOv26-Nano for pollen grain detection.",
+        description="Train YOLOv11s for pollen grain detection.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
@@ -82,7 +65,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--batch",
         type=int,
-        default=16,
+        default=4,
         help="Batch size (reduce for lower VRAM).",
     )
     parser.add_argument(
@@ -108,6 +91,12 @@ def parse_args() -> argparse.Namespace:
         default="train",
         help="Run name inside the project directory.",
     )
+    parser.add_argument(
+        "--kfold",
+        type=int,
+        default=0,
+        help="Number of folds for cross-validation (0 to disable).",
+    )
     return parser.parse_args()
 
 
@@ -128,8 +117,6 @@ def _generate_annotated_image_lists(dataset_root: Path) -> None:
                 for ext in [".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".webp"]:
                     img_path = images_dir / f"{label_file.stem}{ext}"
                     if img_path.exists():
-                        # Write the path relative to the dataset root, or absolute
-                        # YOLO handles absolute paths perfectly
                         annotated_images.append(str(img_path.absolute()).replace("\\", "/"))
                         break
                         
@@ -140,22 +127,26 @@ def _generate_annotated_image_lists(dataset_root: Path) -> None:
 
 
 def main() -> None:
-    """Entry-point: configure and launch YOLOv26 training."""
+    """Entry-point: configure and launch YOLOv11s training."""
     args = parse_args()
 
-    # ── Validate dataset config exists ──────────────────────────────
     data_path = Path(args.data)
     if not data_path.exists():
         print(f"[ERROR] Dataset config not found: {data_path}")
         sys.exit(1)
 
-    # ── Generate lists of annotated images ──────────────────────────
     dataset_root = PROJECT_ROOT / "datasets"
-    _generate_annotated_image_lists(dataset_root)
+    
+    if args.kfold > 1:
+        print(f"\n[INFO] Starting {args.kfold}-Fold Cross Validation...")
+        _run_kfold(args, dataset_root)
+    else:
+        _generate_annotated_image_lists(dataset_root)
+        _run_standard_training(args, data_path)
 
-    # ── Load model ──────────────────────────────────────────────────
+
+def _run_standard_training(args, data_path):
     if args.resume:
-        # Resume from the last saved checkpoint
         last_ckpt = Path(args.project) / args.name / "weights" / "last.pt"
         if not last_ckpt.exists():
             print(f"[ERROR] No checkpoint found at {last_ckpt} for --resume.")
@@ -166,23 +157,7 @@ def main() -> None:
         print(f"[INFO] Loading base model: {args.model}")
         model = YOLO(args.model)
 
-    # ── Launch training ─────────────────────────────────────────────
-    #
-    # AUGMENTATION PHILOSOPHY
-    # -----------------------
-    # ✅ Geometric augmentations (rotation, flip, scale, translate, mosaic)
-    #    → pollen grains are orientation-invariant; these increase
-    #      positional diversity without corrupting colour.
-    #
-    # ❌ Colour / intensity augmentations (hsv_h, hsv_s, hsv_v, mixup)
-    #    → DISABLED to preserve the anthocyanin pigmentation signal.
-    #      The C2PSA (Cross-Stage Partial Spatial Attention) mechanism
-    #      in YOLOv26 acts as a *digital spectrometer*, isolating the
-    #      vibrant purple pigmentation of pollen from background noise.
-    #      Altering brightness, saturation, or hue would corrupt the
-    #      very colour features C2PSA depends on.
-    #
-    print("[INFO] Starting YOLOv26 training …")
+    print("[INFO] Starting YOLOv11s training …")
     print(f"       Dataset : {data_path}")
     print(f"       Epochs  : {args.epochs}")
     print(f"       ImgSize : {args.imgsz}")
@@ -199,36 +174,33 @@ def main() -> None:
         project=args.project,
         name=args.name,
         exist_ok=True,
-        # ── Optimizer ───────────────────────────────────────────────
-        optimizer="auto",             # Auto optimizer for YOLO11
-        # ── Geometric augmentations (ENABLED) ───────────────────────
-        degrees=180.0,                # full rotation (pollen is symmetric)
-        fliplr=0.5,                   # horizontal flip
-        flipud=0.5,                   # vertical flip  (microscopy has no vertical preference)
-        scale=0.2,                    # ±20 % zoom to simulate magnification variance
-        translate=0.1,                # ±10 % translation
-        mosaic=1.0,                   # mosaic composition (geometric, no colour change)
-        # ── Colour augmentations (ENABLED) ───
-        hsv_h=0.015,                  # hue shift
-        hsv_s=0.2,                    # saturation shift
-        hsv_v=0.2,                    # brightness shift
-        mixup=0.0,                    # mixup OFF (would blend colours)
-        copy_paste=0.3,               # inject artificial overlap without colour blending
-        workers=0,                    # disable multiprocessing (prevents shm.dll error on Windows)
+        optimizer="auto",
+        degrees=180.0,
+        fliplr=0.5,
+        flipud=0.5,
+        scale=0.2,
+        translate=0.1,
+        mosaic=1.0,
+        hsv_h=0.015,
+        hsv_s=0.2,
+        hsv_v=0.2,
+        mixup=0.1,
+        copy_paste=0.0,
+        workers=8,
+        max_det=1000,
+        close_mosaic=0,
+        multi_scale=True,
     )
 
-    # ── Report ──────────────────────────────────────────────────────
     best_weights = Path(args.project) / args.name / "weights" / "best.pt"
-    print()
-    print("=" * 60)
+    print("\n" + "=" * 60)
     print("  Training complete!")
     print(f"  Best weights saved to: {best_weights}")
     print("=" * 60)
 
-    # ── Validation ──────────────────────────────────────────────────
     print("\n[INFO] Running data validation on the best weights...")
     val_model = YOLO(str(best_weights))
-    metrics = val_model.val(data=str(data_path), split="val", device=args.device)
+    metrics = val_model.val(data=str(data_path), split="val", device=args.device, iou=0.5, agnostic_nms=True, max_det=1000)
     
     print("\n" + "=" * 60)
     print("  Validation complete!")
@@ -236,6 +208,105 @@ def main() -> None:
         print(f"  Final mAP50: {metrics.box.map50:.4f}")
     print("=" * 60)
 
+
+def _run_kfold(args, dataset_root):
+    # 1. Gather all annotated images
+    all_annotated_images = []
+    for split in ["train", "val"]:
+        labels_dir = dataset_root / "labels" / split
+        images_dir = dataset_root / "images" / split
+        if not labels_dir.exists(): continue
+        for label_file in labels_dir.glob("*.txt"):
+            if label_file.stat().st_size > 0:
+                for ext in [".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".webp"]:
+                    img_path = images_dir / f"{label_file.stem}{ext}"
+                    if img_path.exists():
+                        all_annotated_images.append(str(img_path.absolute()).replace("\\", "/"))
+                        break
+                        
+    if not all_annotated_images:
+        print("[ERROR] No annotated images found!")
+        sys.exit(1)
+        
+    random.seed(42)
+    random.shuffle(all_annotated_images)
+    
+    folds = args.kfold
+    fold_size = len(all_annotated_images) // folds
+    map50_scores = []
+    
+    with open(args.data, 'r') as f:
+        base_data = yaml.safe_load(f)
+        
+    for i in range(folds):
+        print(f"\n{'='*60}\n  STARTING FOLD {i+1}/{folds}\n{'='*60}")
+        val_start = i * fold_size
+        val_end = (i + 1) * fold_size if i < folds - 1 else len(all_annotated_images)
+        
+        val_images = all_annotated_images[val_start:val_end]
+        train_images = all_annotated_images[:val_start] + all_annotated_images[val_end:]
+        
+        train_txt = dataset_root / f"fold_{i}_train.txt"
+        val_txt = dataset_root / f"fold_{i}_val.txt"
+        
+        with open(train_txt, 'w') as f:
+            for img in train_images: f.write(f"{img}\n")
+        with open(val_txt, 'w') as f:
+            for img in val_images: f.write(f"{img}\n")
+            
+        fold_yaml_path = dataset_root / f"fold_{i}.yaml"
+        fold_data = base_data.copy()
+        fold_data['train'] = str(train_txt)
+        fold_data['val'] = str(val_txt)
+        with open(fold_yaml_path, 'w') as f:
+            yaml.dump(fold_data, f)
+            
+        fold_name = f"{args.name}_fold_{i}"
+        
+        model = YOLO(args.model)
+        model.train(
+            data=str(fold_yaml_path),
+            epochs=args.epochs,
+            imgsz=args.imgsz,
+            batch=args.batch,
+            device=args.device,
+            project=args.project,
+            name=fold_name,
+            exist_ok=True,
+            optimizer="auto",
+            degrees=180.0,
+            fliplr=0.5,
+            flipud=0.5,
+            scale=0.2,
+            translate=0.1,
+            mosaic=1.0,
+            hsv_h=0.015,
+            hsv_s=0.2,
+            hsv_v=0.2,
+            mixup=0.1,
+            copy_paste=0.0,
+            workers=8,
+            max_det=1000,
+            close_mosaic=0,
+            multi_scale=True,
+        )
+        
+        best_weights = Path(args.project) / fold_name / "weights" / "best.pt"
+        val_model = YOLO(str(best_weights))
+        metrics = val_model.val(data=str(fold_yaml_path), split="val", device=args.device, iou=0.5, agnostic_nms=True, max_det=1000)
+        
+        score = metrics.box.map50 if hasattr(metrics, 'box') else 0
+        map50_scores.append(score)
+        print(f"[INFO] Fold {i+1} mAP50: {score:.4f}")
+        
+    print("\n" + "="*60)
+    print("  K-FOLD CROSS VALIDATION COMPLETE")
+    for i, s in enumerate(map50_scores):
+        print(f"  Fold {i+1}: {s:.4f}")
+    if map50_scores:
+        avg_score = sum(map50_scores) / len(map50_scores)
+        print(f"  Average mAP50: {avg_score:.4f}")
+    print("="*60)
 
 if __name__ == "__main__":
     main()

@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────────────
-# Pollen Dataset Configuration — YOLOv26
+# Pollen Dataset Configuration — YOLOv11s
 # ──────────────────────────────────────────────────────────────────────
 # This file tells Ultralytics where your annotated images and labels
 # live.  Export your CVAT / Roboflow annotations in "YOLO" format and
