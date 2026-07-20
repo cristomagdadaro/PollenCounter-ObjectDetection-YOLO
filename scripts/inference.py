@@ -296,7 +296,7 @@ def run_gui():
     var_input = tk.StringVar(value=saved_settings.get("input", str(DEFAULT_INPUT)))
     var_out = tk.StringVar(value=saved_settings.get("output", str(DEFAULT_OUTPUT)))
     var_weights = tk.StringVar(value=saved_settings.get("weights", str(DEFAULT_WEIGHTS)))
-    var_conf = tk.StringVar(value=str(saved_settings.get("conf", "0.25")))
+    var_conf = tk.StringVar(value=str(saved_settings.get("conf", "0.03")))
     var_imgsz = tk.StringVar(value=str(saved_settings.get("imgsz", "1024")))
     var_device = tk.StringVar(value=str(saved_settings.get("device", "0")))
     
