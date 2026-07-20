@@ -205,13 +205,33 @@ def _run_standard_training(args, data_path):
 
     print("\n[INFO] Running data validation on the best weights...")
     val_model = YOLO(str(best_weights))
-    metrics = val_model.val(data=str(data_path), split="val", device=args.device, iou=0.5, agnostic_nms=True, max_det=1000)
+    metrics = val_model.val(
+        data=str(data_path), 
+        split="val", 
+        device=args.device, 
+        iou=0.5, 
+        agnostic_nms=True, 
+        max_det=1000,
+        project=str(Path(args.project) / args.name),
+        name="val_results"
+    )
     
     print("\n" + "=" * 60)
     print("  Validation complete!")
     if hasattr(metrics, 'box'):
         print(f"  Final mAP50: {metrics.box.map50:.4f}")
     print("=" * 60)
+
+    # Automatically open the training visualization graphs
+    results_png = Path(args.project) / args.name / "results.png"
+    if results_png.exists():
+        print(f"\n[INFO] Opening training visualization: {results_png}")
+        try:
+            import os
+            os.startfile(results_png)
+        except Exception as e:
+            print(f"[WARNING] Could not auto-open results.png: {e}")
+
 
 
 def _run_kfold(args, dataset_root):
@@ -302,7 +322,16 @@ def _run_kfold(args, dataset_root):
         
         best_weights = Path(args.project) / fold_name / "weights" / "best.pt"
         val_model = YOLO(str(best_weights))
-        metrics = val_model.val(data=str(fold_yaml_path), split="val", device=args.device, iou=0.5, agnostic_nms=True, max_det=1000)
+        metrics = val_model.val(
+            data=str(fold_yaml_path), 
+            split="val", 
+            device=args.device, 
+            iou=0.5, 
+            agnostic_nms=True, 
+            max_det=1000,
+            project=str(Path(args.project) / fold_name),
+            name="val_results"
+        )
         
         score = metrics.box.map50 if hasattr(metrics, 'box') else 0
         map50_scores.append(score)
