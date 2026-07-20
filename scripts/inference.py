@@ -150,6 +150,11 @@ def run_inference(
                     xywhn = boxes.xywhn.cpu().tolist()
                     for cls_id, box in zip(cls_ids, xywhn):
                         x, y, w, h = box
+                        
+                        # Shrink the bounding box by 10% to make it perfectly fit the pollen
+                        w = w * 0.90
+                        h = h * 0.90
+                        
                         f.write(f"{int(cls_id)} {x:.6f} {y:.6f} {w:.6f} {h:.6f}\n")
 
     if mode == "Count & Analyze":
