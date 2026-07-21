@@ -386,6 +386,12 @@ class AnnotationApp:
 
         btn_style = {"font": ("Segoe UI", 10, "bold"), "width": 22, "cursor": "hand2", "bd": 0, "pady": 6}
 
+        self.snap_btn = tk.Button(
+            sidebar, text="✨ Snap Boxes to Edges", bg="#059669", fg="white",
+            activebackground="#047857", command=self._snap_boxes, **btn_style
+        )
+        self.snap_btn.pack(pady=2)
+
         self.export_btn = tk.Button(
             sidebar, text="📸 Export to JPG", bg="#D97706", fg="white",
             activebackground="#B45309", command=self._export_jpg, **btn_style
@@ -877,6 +883,60 @@ class AnnotationApp:
         out_path = out_dir / path.name
         export_img.save(out_path, quality=95)
         self.status.config(text=f"✅ Exported JPG to {out_path.name}")
+
+    def _snap_boxes(self):
+        """Recompute bounding boxes to snap perfectly to pollen edges using OpenCV."""
+        if not self.pil_img or not self.boxes:
+            return
+            
+        import cv2
+        import numpy as np
+        
+        img_bgr = cv2.cvtColor(np.array(self.pil_img), cv2.COLOR_RGB2BGR)
+        img_h, img_w = img_bgr.shape[:2]
+        
+        updated = 0
+        for box in self.boxes:
+            x1 = int((box.x_center - box.w / 2) * img_w)
+            y1 = int((box.y_center - box.h / 2) * img_h)
+            x2 = int((box.x_center + box.w / 2) * img_w)
+            y2 = int((box.y_center + box.h / 2) * img_h)
+            
+            x1, y1 = max(0, x1), max(0, y1)
+            x2, y2 = min(img_w, x2), min(img_h, y2)
+            
+            if x2 <= x1 or y2 <= y1:
+                continue
+                
+            roi = img_bgr[y1:y2, x1:x2]
+            
+            try:
+                gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+                blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+                _, thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+                
+                contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                
+                if contours:
+                    largest_contour = max(contours, key=cv2.contourArea)
+                    cx, cy, cw, ch = cv2.boundingRect(largest_contour)
+                    
+                    new_x1 = x1 + cx
+                    new_y1 = y1 + cy
+                    new_x2 = new_x1 + cw
+                    new_y2 = new_y1 + ch
+                    
+                    box.w = (new_x2 - new_x1) / img_w
+                    box.h = (new_y2 - new_y1) / img_h
+                    box.x_center = (new_x1 + new_x2) / 2.0 / img_w
+                    box.y_center = (new_y1 + new_y2) / 2.0 / img_h
+                    updated += 1
+            except Exception:
+                pass
+                
+        self._redraw_boxes()
+        self._save_labels()
+        self.status.config(text=f"✨ Snapped {updated} boxes to edges")
 
     def _clean_duplicates(self):
         """Remove boxes that overlap by more than 80% with another box."""
