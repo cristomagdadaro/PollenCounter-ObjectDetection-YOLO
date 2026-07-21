@@ -302,6 +302,46 @@ class AnnotationApp:
         self.entry_w.bind("<Escape>", lambda e: self.canvas.focus_set())
         self.entry_h.bind("<Escape>", lambda e: self.canvas.focus_set())
 
+        # ── Sidebar: scale all boxes ────────────────────────────────
+        tk.Label(
+            sidebar, text="Scale All Boxes", font=("Segoe UI", 11, "bold"),
+            bg=SIDEBAR_BG, fg=ACCENT
+        ).pack(anchor=tk.W, padx=12, pady=(12, 2))
+
+        self.scale_var = tk.DoubleVar(value=1.0)
+        self.scale_slider = tk.Scale(
+            sidebar, from_=0.5, to=2.0, resolution=0.05, orient=tk.HORIZONTAL,
+            variable=self.scale_var, bg=SIDEBAR_BG, fg=TEXT_COLOR, 
+            activebackground=ACCENT, highlightthickness=0, bd=0
+        )
+        self.scale_slider.pack(fill=tk.X, padx=12)
+
+        def on_scale_press(event):
+            import copy
+            self.base_boxes = copy.deepcopy(self.boxes)
+
+        def on_scale_drag(val):
+            if not hasattr(self, 'base_boxes'): return
+            scale_factor = float(val)
+            import copy
+            self.boxes = copy.deepcopy(self.base_boxes)
+            for box in self.boxes:
+                box.w *= scale_factor
+                box.h *= scale_factor
+            self._redraw_boxes()
+
+        def on_scale_release(event):
+            if not hasattr(self, 'base_boxes'): return
+            self._save_labels()
+            del self.base_boxes
+            self.scale_slider.config(command="")
+            self.scale_var.set(1.0)
+            self.scale_slider.config(command=on_scale_drag)
+
+        self.scale_slider.bind("<ButtonPress-1>", on_scale_press)
+        self.scale_slider.config(command=on_scale_drag)
+        self.scale_slider.bind("<ButtonRelease-1>", on_scale_release)
+
         # ── Sidebar: instructions ───────────────────────────────────
         tk.Frame(sidebar, bg="#444466", height=1).pack(fill=tk.X, padx=12, pady=4)
 
