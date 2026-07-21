@@ -29,7 +29,7 @@ from ultralytics import YOLO
 # ─── Project paths ──────────────────────────────────────────────────
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATASET_YAML = PROJECT_ROOT / "config" / "pollen_dataset.yaml"
-DEFAULT_MODEL = "yolo11n.pt"
+DEFAULT_MODEL = "yolo11s.pt"
 
 
 def parse_args() -> argparse.Namespace:

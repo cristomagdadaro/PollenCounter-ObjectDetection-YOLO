@@ -50,7 +50,8 @@ To ensure continuous improvement, log the results of every major training run he
 | **Jul 16** | 16 Train / 2 Val | `yolo11n.pt` | 768 | 24 | 150 | **31.1%** | *Downscaling too far caused loss of critical pollen grain details.* |
 | **Jul 20** | ~50 Train / ~13 Val | `yolo11s.pt` | 1024 | 4 | 150 | **31.8%** | *Standard run (no K-Fold). Model struggled to generalize.* |
 | **Jul 20** | 63 (K-Fold=5) | `yolo11s.pt` | 1024 | 4 | 150 | **49.8%** | *Upgraded to K-Fold Cross Validation. Massive ~18% improvement in accuracy due to robust dataset splitting.* |
-| **Jul 20** | 79 Train / 10 Val | `yolo11n.pt` | 1024 | - | 150 | **55.3%** | *Active learning dataset scaling! Massive jump in accuracy by simply feeding the model more corrected data. Highest score yet.* |
+| **Jul 20** | 79 Train / 10 Val | `yolo11n.pt` | 1024 | - | 150 | **55.3%** | *Active learning dataset scaling! Massive jump in accuracy by simply feeding the model more corrected data.* |
+| **Jul 21** | 165 Train / 20 Val | `yolo11n.pt` | 1024 | 4 | 150 | **61.3%** | *Breakthrough! First time breaking 60%. Precision (69.7%) and Recall (67.4%) are incredibly balanced. Nano model is now reaching its limits.* |
 
 *Remember to update this table every time a new dataset batch is annotated or a major training setting is changed!*
 
