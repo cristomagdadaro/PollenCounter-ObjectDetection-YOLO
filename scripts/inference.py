@@ -184,10 +184,12 @@ def run_inference(
                                 cx, cy, cw, ch = cv2.boundingRect(largest_contour)
                                 
                                 # Convert local contour rect back to global image coordinates
-                                new_x1 = x1 + cx
-                                new_y1 = y1 + cy
-                                new_x2 = new_x1 + cw
-                                new_y2 = new_y1 + ch
+                                pad_w = int(cw * 0.08)
+                                pad_h = int(ch * 0.08)
+                                new_x1 = max(0, x1 + cx - pad_w)
+                                new_y1 = max(0, y1 + cy - pad_h)
+                                new_x2 = min(img_w, x1 + cx + cw + pad_w)
+                                new_y2 = min(img_h, y1 + cy + ch + pad_h)
                                 
                                 # Convert to YOLO normalized format
                                 w_norm = (new_x2 - new_x1) / img_w

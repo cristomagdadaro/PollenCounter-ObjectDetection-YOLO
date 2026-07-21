@@ -810,11 +810,10 @@ class AnnotationApp:
                 lx2 = cx2 - self.img_offset_x
                 ly2 = cy2 - self.img_offset_y
                 
-                is_microscopic = box.w < 0.005 or box.h < 0.005
                 is_massive = box.w > 0.5 or box.h > 0.5
-                color = (255, 0, 0) if (is_microscopic or is_massive) else (0, 255, 136)
+                color = (255, 0, 0) if is_massive else (0, 255, 136)
                 
-                outline_w = 4 if (is_microscopic or is_massive) else 2
+                outline_w = 4 if is_massive else 2
                 draw.rectangle([lx1, ly1, lx2, ly2], outline=(*color, opacity), width=outline_w)
 
             self.overlay_tk = ImageTk.PhotoImage(overlay_pil)
@@ -832,7 +831,8 @@ class AnnotationApp:
 
 
 
-            color_str = "#FF0000" if (is_microscopic or is_massive) else BOX_COLOR
+            is_massive = box.w > 0.5 or box.h > 0.5
+            color_str = "#FF0000" if is_massive else BOX_COLOR
             # Small label
             label_id = self.canvas.create_text(
                 cx1 + 3, cy1 - 10,
@@ -871,9 +871,8 @@ class AnnotationApp:
             x2 = x2_n * self.orig_w
             y2 = y2_n * self.orig_h
             
-            is_microscopic = box.w < 0.005 or box.h < 0.005
             is_massive = box.w > 0.5 or box.h > 0.5
-            color = (255, 0, 0) if (is_microscopic or is_massive) else (0, 255, 136)
+            color = (255, 0, 0) if is_massive else (0, 255, 136)
             
             draw.rectangle([x1, y1, x2, y2], outline=(*color, opacity), width=3)
             # optional text
@@ -921,10 +920,12 @@ class AnnotationApp:
                     largest_contour = max(contours, key=cv2.contourArea)
                     cx, cy, cw, ch = cv2.boundingRect(largest_contour)
                     
-                    new_x1 = x1 + cx
-                    new_y1 = y1 + cy
-                    new_x2 = new_x1 + cw
-                    new_y2 = new_y1 + ch
+                    pad_w = int(cw * 0.08)
+                    pad_h = int(ch * 0.08)
+                    new_x1 = max(0, x1 + cx - pad_w)
+                    new_y1 = max(0, y1 + cy - pad_h)
+                    new_x2 = min(img_w, x1 + cx + cw + pad_w)
+                    new_y2 = min(img_h, y1 + cy + ch + pad_h)
                     
                     box.w = (new_x2 - new_x1) / img_w
                     box.h = (new_y2 - new_y1) / img_h
