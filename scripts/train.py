@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-train.py — YOLOv11s Pollen Detection Training Script
+train.py  YOLOv11s Pollen Detection Training Script
 =====================================================
 
 Trains a YOLO model on annotated pollen microscopy images.

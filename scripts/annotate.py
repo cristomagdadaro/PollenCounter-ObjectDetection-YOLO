@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 """
-annotate.py — Pollen Grain Bounding Box Annotation Tool
+annotate.py  Pollen Grain Bounding Box Annotation Tool
 =========================================================
 
 A local tkinter GUI for drawing bounding boxes on pollen microscopy
 images and saving the annotations in YOLO format.
 
 Features:
-  • Click-and-drag to draw bounding boxes
-  • Right-click a box to delete it
-  • Navigate between images with Next/Previous or keyboard arrows
-  • Auto-saves YOLO .txt label files to datasets/labels/train/
-  • Shows box count and annotation progress
-  • Supports splitting images into train/val sets
+   Click-and-drag to draw bounding boxes
+   Right-click a box to delete it
+   Navigate between images with Next/Previous or keyboard arrows
+   Auto-saves YOLO .txt label files to datasets/labels/train/
+   Shows box count and annotation progress
+   Supports splitting images into train/val sets
 
 Usage:
     python scripts/annotate.py
@@ -177,7 +177,7 @@ class AnnotationApp:
     # ════════════════════════════════════════════════════════════════
 
     def _build_ui(self):
-        self.root.title("🔬 Pollen Annotator — YOLOv11s")
+        self.root.title(" Pollen Annotator  YOLOv11s")
         self.root.configure(bg=BG_COLOR)
         self.root.minsize(1100, 700)
 
@@ -187,7 +187,7 @@ class AnnotationApp:
         top.pack_propagate(False)
 
         tk.Label(
-            top, text="🔬  Pollen Grain Annotator", font=("Segoe UI", 14, "bold"),
+            top, text="  Pollen Grain Annotator", font=("Segoe UI", 14, "bold"),
             bg=ACCENT, fg="white"
         ).pack(side=tk.LEFT, padx=16)
 
@@ -387,25 +387,25 @@ class AnnotationApp:
         btn_style = {"font": ("Segoe UI", 10, "bold"), "width": 22, "cursor": "hand2", "bd": 0, "pady": 6}
 
         self.snap_btn = tk.Button(
-            sidebar, text="✨ Snap Boxes to Edges", bg="#059669", fg="white",
+            sidebar, text=" Snap Boxes to Edges", bg="#059669", fg="white",
             activebackground="#047857", command=self._snap_boxes, **btn_style
         )
         self.snap_btn.pack(pady=2)
 
         self.export_btn = tk.Button(
-            sidebar, text="📸 Export to JPG", bg="#D97706", fg="white",
+            sidebar, text=" Export to JPG", bg="#D97706", fg="white",
             activebackground="#B45309", command=self._export_jpg, **btn_style
         )
         self.export_btn.pack(pady=2)
 
         self.prev_btn = tk.Button(
-            sidebar, text="◀  Previous", bg="#3A3A5C", fg="white",
+            sidebar, text="  Previous", bg="#3A3A5C", fg="white",
             activebackground="#4A4A6C", command=self._prev_image, **btn_style
         )
         self.prev_btn.pack(pady=2)
 
         self.next_btn = tk.Button(
-            sidebar, text="Next  ▶", bg=ACCENT, fg="white",
+            sidebar, text="Next  ", bg=ACCENT, fg="white",
             activebackground="#6D28D9", command=self._next_image, **btn_style
         )
         self.next_btn.pack(pady=2)
@@ -413,7 +413,7 @@ class AnnotationApp:
         tk.Frame(sidebar, bg="#444466", height=1).pack(fill=tk.X, padx=12, pady=8)
 
         self.clear_btn = tk.Button(
-            sidebar, text="🗑  Clear All Boxes", bg="#DC2626", fg="white",
+            sidebar, text="  Clear All Boxes", bg="#DC2626", fg="white",
             activebackground="#B91C1C", command=self._clear_boxes, **btn_style
         )
         self.clear_btn.pack(pady=2)
@@ -446,7 +446,7 @@ class AnnotationApp:
         tk.Frame(sidebar, bg="#444466", height=1).pack(fill=tk.X, padx=12, pady=4)
 
         self.delete_btn = tk.Button(
-            sidebar, text="❌ Delete Permanently", bg="#7F1D1D", fg="white",
+            sidebar, text=" Delete Permanently", bg="#7F1D1D", fg="white",
             activebackground="#450A0A", command=self._delete_image, **btn_style
         )
         self.delete_btn.pack(pady=2)
@@ -679,7 +679,7 @@ class AnnotationApp:
         self._redraw_boxes()
         self._save_labels()
         self._update_ui()
-        self.status.config(text=f"✅ Box added — total: {len(self.boxes)}")
+        self.status.config(text=f" Box added  total: {len(self.boxes)}")
 
     def _on_right_click(self, event):
         """Delete the box closest to the right-click position."""
@@ -700,7 +700,7 @@ class AnnotationApp:
                 self._redraw_boxes()
                 self._save_labels()
                 self._update_ui()
-                self.status.config(text=f"🗑 Box deleted — total: {len(self.boxes)}")
+                self.status.config(text=f" Box deleted  total: {len(self.boxes)}")
                 return
 
     def _on_mouse_move(self, event):
@@ -740,7 +740,7 @@ class AnnotationApp:
         self._redraw_boxes()
         self._save_labels()
         self._update_ui()
-        self.status.config(text=f"✅ Auto-box added {suffix} — total: {len(self.boxes)}")
+        self.status.config(text=f" Auto-box added {suffix}  total: {len(self.boxes)}")
 
     def _calculate_default_box_size(self):
         """Find the median width and height of all existing annotations."""
@@ -935,7 +935,7 @@ class AnnotationApp:
         export_img = Image.alpha_composite(export_img, overlay).convert("RGB")
         out_path = out_dir / path.name
         export_img.save(out_path, quality=95)
-        self.status.config(text=f"✅ Exported JPG to {out_path.name}")
+        self.status.config(text=f" Exported JPG to {out_path.name}")
 
     def _snap_single_box(self, box):
         if not self.pil_img: return False
@@ -994,7 +994,7 @@ class AnnotationApp:
                 
         self._redraw_boxes()
         self._save_labels()
-        self.status.config(text=f"✨ Snapped {updated} boxes to edges")
+        self.status.config(text=f" Snapped {updated} boxes to edges")
 
     def _clean_duplicates(self):
         """Remove boxes that overlap by more than 80% with another box."""
@@ -1072,14 +1072,14 @@ class AnnotationApp:
             self.pil_img = None
             self.boxes.clear()
             self._update_ui()
-            self.status.config(text="🗑 Deleted last image.")
+            self.status.config(text=" Deleted last image.")
             return
 
         if self.current_idx >= len(self.image_paths):
             self.current_idx = len(self.image_paths) - 1
             
         self._load_image()
-        self.status.config(text=f"🗑 Permanently deleted image")
+        self.status.config(text=f" Permanently deleted image")
 
     # ════════════════════════════════════════════════════════════════
     #  ACTIONS
@@ -1091,7 +1091,7 @@ class AnnotationApp:
             self._redraw_boxes()
             self._save_labels()
             self._update_ui()
-            self.status.config(text=f"↩ Undo — boxes: {len(self.boxes)}")
+            self.status.config(text=f"↩ Undo  boxes: {len(self.boxes)}")
 
     def _clear_boxes(self):
         if self.boxes:
@@ -1100,7 +1100,7 @@ class AnnotationApp:
                 self._redraw_boxes()
                 self._save_labels()
                 self._update_ui()
-                self.status.config(text="🗑 All boxes cleared")
+                self.status.config(text=" All boxes cleared")
 
     def _change_dataset(self, event):
         new_set = self.dataset_combo.get()
@@ -1185,8 +1185,8 @@ class AnnotationApp:
             self.file_label.config(text="")
             self.size_label.config(text="")
             self.count_label.config(text="Boxes: 0")
-            self.progress_label.config(text=f"0/0  •  0 annotated")
-            self.root.title(f"🔬 Pollen Annotator — {self.current_set} (Empty)")
+            self.progress_label.config(text=f"0/0    0 annotated")
+            self.root.title(f" Pollen Annotator  {self.current_set} (Empty)")
             
             self.prev_btn.config(state=tk.DISABLED)
             self.next_btn.config(state=tk.DISABLED)
@@ -1209,8 +1209,8 @@ class AnnotationApp:
         self.file_label.config(text=img_path.name)
         self.size_label.config(text=f"{self.orig_w} × {self.orig_h} px")
         self.count_label.config(text=f"Boxes: {len(self.boxes)}")
-        self.progress_label.config(text=f"Image {idx}/{total}  •  {annotated} annotated")
-        self.root.title(f"🔬 Pollen Annotator — {self.current_set}: {img_path.name} [{idx}/{total}]")
+        self.progress_label.config(text=f"Image {idx}/{total}    {annotated} annotated")
+        self.root.title(f" Pollen Annotator  {self.current_set}: {img_path.name} [{idx}/{total}]")
 
         # Button states
         self.prev_btn.config(state=tk.NORMAL if self.current_idx > 0 else tk.DISABLED)
@@ -1248,7 +1248,7 @@ def main():
     # Final report
     labels_dir = Path(args.labels)
     label_count = sum(1 for f in labels_dir.glob("*.txt") if f.stat().st_size > 0)
-    print(f"\n[INFO] Annotation complete — {label_count} label file(s) saved to {labels_dir}")
+    print(f"\n[INFO] Annotation complete  {label_count} label file(s) saved to {labels_dir}")
 
 
 if __name__ == "__main__":

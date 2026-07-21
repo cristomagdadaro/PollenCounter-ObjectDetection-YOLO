@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-inference.py — Unified YOLO Inference (GUI & CLI)
+inference.py  Unified YOLO Inference (GUI & CLI)
 =================================================
 
 This script replaces `count_pollen.py` and `auto_annotate.py`.
@@ -254,7 +254,7 @@ def show_results_viewer(parent, summary_rows, in_dir, out_dir):
         if save_path:
             shutil.copy(annot_path, save_path)
             
-    btn_save = ttk.Button(top_frame, text="📸 Save Image", command=save_current_image)
+    btn_save = ttk.Button(top_frame, text=" Save Image", command=save_current_image)
     btn_save.pack(side=tk.LEFT, padx=5)
     
     zoom_enabled = tk.BooleanVar(value=True)
@@ -364,7 +364,7 @@ def run_gui():
     ACCENT_COLOR = "#89B4FA"
     BTN_BG = "#313244"
     
-    tk.Label(root, text="✨ Unified YOLO Inference", font=("Segoe UI", 14, "bold"), bg=BG_COLOR, fg=ACCENT_COLOR).pack(pady=10)
+    tk.Label(root, text=" Unified YOLO Inference", font=("Segoe UI", 14, "bold"), bg=BG_COLOR, fg=ACCENT_COLOR).pack(pady=10)
     
     CONFIG_FILE = PROJECT_ROOT / "config" / "inference_settings.json"
     saved_settings = {}
@@ -462,7 +462,7 @@ def run_gui():
         except Exception as e:
             messagebox.showerror("Error", f"Could not load results: {e}")
 
-    btn_open_annot = tk.Button(btn_frame, text="✏️ Annotator", font=("Segoe UI", 11, "bold"), bg="#F9E2AF", fg="#11111B", bd=0, cursor="hand2", command=open_annotator)
+    btn_open_annot = tk.Button(btn_frame, text="✏ Annotator", font=("Segoe UI", 11, "bold"), bg="#F9E2AF", fg="#11111B", bd=0, cursor="hand2", command=open_annotator)
     btn_open_annot.pack(side=tk.RIGHT, ipady=6, ipadx=5)
     
     btn_open_view = tk.Button(btn_frame, text="🔍 Viewer", font=("Segoe UI", 11, "bold"), bg="#F9E2AF", fg="#11111B", bd=0, cursor="hand2", command=open_viewer)
@@ -514,11 +514,11 @@ def run_gui():
             except Exception as e:
                 root.after(0, lambda m=str(e): log_cb(f"\n[ERROR] {m}"))
             finally:
-                root.after(0, lambda: btn_run.config(state=tk.NORMAL, text="🚀 Run Inference"))
+                root.after(0, lambda: btn_run.config(state=tk.NORMAL, text=" Run Inference"))
                 
         threading.Thread(target=_thread, daemon=True).start()
 
-    btn_run = tk.Button(btn_frame, text="🚀 Run Inference", font=("Segoe UI", 11, "bold"), bg="#A6E3A1", fg="#11111B", bd=0, cursor="hand2", command=start_processing)
+    btn_run = tk.Button(btn_frame, text=" Run Inference", font=("Segoe UI", 11, "bold"), bg="#A6E3A1", fg="#11111B", bd=0, cursor="hand2", command=start_processing)
     btn_run.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 10), ipady=6)
 
     root.mainloop()

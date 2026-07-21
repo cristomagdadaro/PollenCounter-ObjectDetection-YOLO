@@ -1,4 +1,4 @@
-# 🔬 PollenCounter — YOLO11 Object Detection
+#  PollenCounter  YOLO11 Object Detection
 
 > **High-Volume Automated Pollen Counting** using YOLO11.
 
@@ -6,7 +6,7 @@ Automate the counting of microscopic pollen grains across massive image datasets
 
 ---
 
-## 🚀 Model Evolution & Best Practices (Living Document)
+##  Model Evolution & Best Practices (Living Document)
 
 This project has evolved through continuous testing to optimise accuracy. Below are the key discoveries and techniques to improve the model over time.
 
@@ -39,7 +39,7 @@ This project has evolved through continuous testing to optimise accuracy. Below 
 
 ---
 
-## 📊 Training History & Results Log
+##  Training History & Results Log
 
 To ensure continuous improvement, log the results of every major training run here to compare and contrast how different hyperparameter combinations affect the `mAP50`.
 
@@ -56,7 +56,7 @@ To ensure continuous improvement, log the results of every major training run he
 
 ---
 
-## 🎨 Annotation GUI Tool
+##  Annotation GUI Tool
 
 A built-in Tkinter GUI is provided to rapidly build your dataset.
 
@@ -64,15 +64,18 @@ A built-in Tkinter GUI is provided to rapidly build your dataset.
 python scripts/annotate.py
 ```
 
-### Dataset Management Features
-- **Auto-Box:** Double-click or press `Spacebar` to instantly place a default-sized box at your cursor.
-- **Scale All Boxes:** A real-time slider to globally adjust the size of all bounding boxes on the current image. Perfect for tightening loose Auto-Annotate boxes.
+### Dataset Management & Annotation Features
+- **OpenCV Auto-Snapping:** Just draw a rough box and release your mousethe tool will automatically use OpenCV to perfectly "shrink-wrap" the bounding box around the pollen grain (with an 8% padding to preserve blurry edges). You can also click " Snap Boxes to Edges" to run this on all boxes in an image.
+- **Visual Error Warnings:** Bounding boxes are color-coded in real-time.  **Green** means normal.  **Orange** warns you that boxes are overlapping (e.g. clumped pollen).  **Red** means a box is massively oversized.
+- **Box Opacity Slider:** Adjust the transparency of the bounding box borders to clearly see the edges of the pollen underneath.
+- **Export to JPG:** Use the  Export button to instantly save a flattened image of the current frame and its bounding boxes for reports.
+- **Auto-Box:** Double-click or press `Spacebar` to instantly place a default-sized box at your cursor (which also automatically snaps to edges!).
 - **Dataset Switcher:** Use the dropdown in the sidebar to switch between viewing your `Train`, `Validation`, and `Excluded` image sets.
-- **Move/Exclude:** Use the sidebar buttons to instantly move an image (and its label data) between the Train, Validation, or Excluded folders. Includes an overwrite safety warning to prevent accidental data loss. Excluded images are safely hidden and ignored during training.
+- **Move/Exclude:** Use the sidebar buttons to instantly move an image (and its label data) between the Train, Validation, or Excluded folders. Includes an overwrite safety warning. Excluded images are safely hidden and ignored during training.
 
 ---
 
-## 🏋️ Training Pipeline
+##  Training Pipeline
 
 ```bash
 python scripts/train.py --model yolo11n.pt --device 0 --epochs 100 --batch 20 --imgsz 1024 --kfolds 5
@@ -92,7 +95,7 @@ python scripts/train.py --model yolo11n.pt --device 0 --epochs 100 --batch 20 --
 
 ---
 
-## 🔬 Unified Inference Tool (Count & Auto-Annotate)
+##  Unified Inference Tool (Count & Auto-Annotate)
 
 We have combined all inference logic into a single, easy-to-use GUI. 
 
@@ -101,23 +104,25 @@ python scripts/inference.py
 ```
 
 The GUI offers two **Modes**:
-1. **📊 Count & Analyze:** 
+1. ** Count & Analyze:** 
    - Detects all pollen grains.
    - Generates random-colored bounding box dots for clear visibility of overlapping grains.
    - Draws a semi-transparent text overlay with the total count in the center of the output image.
    - Saves the annotated images and a comprehensive `pollen_counts.xlsx` report to the output folder.
-   - Unlocks a built-in Image Viewer to quickly flip through results.
+   - Unlocks a built-in Result Viewer to quickly flip through results (includes an individual  Save Image button for each slide).
 
-2. **🏷️ Auto-Annotate:** 
+2. ** Auto-Annotate:** 
    - Used for **Active Learning**.
    - Feeds raw, unlabelled images through the model and saves YOLO `.txt` labels.
-   - **OpenCV Auto-Snapping:** Automatically utilizes Otsu's thresholding and Contour Detection to perfectly snap the predicted YOLO bounding box to the exact circular edge of the dark pollen grain!
+   - **OpenCV Auto-Snapping:** Automatically utilizes Otsu's thresholding and Contour Detection to perfectly snap the predicted YOLO bounding box to the exact circular edge of the dark pollen grain (including an 8% padding to preserve delicate outer edges).
    - Supports extremely dense slides by raising the `max_det` limit from YOLO's default of 300 to **5,000** objects per image.
-   - Copies the images into a `review` folder so you can open them in `scripts/annotate.py`, fix the model's mistakes, and instantly add them to your dataset!
+   - Copies the images into a `review` folder so you can open them in `scripts/annotate.py`, quickly delete orange overlapping boxes or red errors, and instantly add them to your dataset!
+
+*Both modes feature a real-time **Box Opacity** slider in the unified launch GUI so you can perfectly tune the thickness and transparency of drawn borders.*
 
 ---
 
-## 🚀 Moving Forward (Next Steps)
+##  Moving Forward (Next Steps)
 
 Now that the foundational architecture, robust K-Fold training, and unified UI tools are complete, the sole focus should shift to **Data Scaling via Active Learning**. 
 
@@ -132,7 +137,7 @@ Now that the foundational architecture, robust K-Fold training, and unified UI t
 
 ---
 
-## 📂 Project Structure
+##  Project Structure
 
 ```text
 PollenCounter-ObjectDetection-YOLO/
