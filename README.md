@@ -66,8 +66,9 @@ python scripts/annotate.py
 
 ### Dataset Management Features
 - **Auto-Box:** Double-click or press `Spacebar` to instantly place a default-sized box at your cursor.
+- **Scale All Boxes:** A real-time slider to globally adjust the size of all bounding boxes on the current image. Perfect for tightening loose Auto-Annotate boxes.
 - **Dataset Switcher:** Use the dropdown in the sidebar to switch between viewing your `Train`, `Validation`, and `Excluded` image sets.
-- **Move/Exclude:** Use the sidebar buttons to instantly move an image (and its label data) between the Train, Validation, or Excluded folders. Excluded images are safely hidden and ignored during training.
+- **Move/Exclude:** Use the sidebar buttons to instantly move an image (and its label data) between the Train, Validation, or Excluded folders. Includes an overwrite safety warning to prevent accidental data loss. Excluded images are safely hidden and ignored during training.
 
 ---
 
@@ -109,7 +110,9 @@ The GUI offers two **Modes**:
 
 2. **🏷️ Auto-Annotate:** 
    - Used for **Active Learning**.
-   - Feeds raw, unlabelled images through the model and saves raw YOLO `.txt` labels.
+   - Feeds raw, unlabelled images through the model and saves YOLO `.txt` labels.
+   - **OpenCV Auto-Snapping:** Automatically utilizes Otsu's thresholding and Contour Detection to perfectly snap the predicted YOLO bounding box to the exact circular edge of the dark pollen grain!
+   - Supports extremely dense slides by raising the `max_det` limit from YOLO's default of 300 to **5,000** objects per image.
    - Copies the images into a `review` folder so you can open them in `scripts/annotate.py`, fix the model's mistakes, and instantly add them to your dataset!
 
 ---

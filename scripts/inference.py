@@ -147,15 +147,58 @@ def run_inference(
             with open(label_path, "w") as f:
                 if n_detections > 0:
                     cls_ids = boxes.cls.cpu().tolist()
-                    xywhn = boxes.xywhn.cpu().tolist()
-                    for cls_id, box in zip(cls_ids, xywhn):
-                        x, y, w, h = box
+                    xyxy = boxes.xyxy.cpu().tolist()
+                    
+                    for cls_id, box in zip(cls_ids, xyxy):
+                        x1, y1, x2, y2 = map(int, box)
                         
-                        # Shrink the bounding box by 10% to make it perfectly fit the pollen
-                        w = w * 0.90
-                        h = h * 0.90
+                        # Clamp to image boundaries
+                        x1 = max(0, x1)
+                        y1 = max(0, y1)
+                        x2 = min(img_w, x2)
+                        y2 = min(img_h, y2)
                         
-                        f.write(f"{int(cls_id)} {x:.6f} {y:.6f} {w:.6f} {h:.6f}\n")
+                        if x2 <= x1 or y2 <= y1:
+                            continue
+                            
+                        # Extract the crop (Region of Interest)
+                        roi = img[y1:y2, x1:x2]
+                        
+                        # Apply OpenCV Contours to snap perfectly to the pollen
+                        try:
+                            gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+                            blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+                            
+                            # Otsu's thresholding (assumes dark pollen on bright background)
+                            _, thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+                            
+                            contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                            
+                            if contours:
+                                largest_contour = max(contours, key=cv2.contourArea)
+                                cx, cy, cw, ch = cv2.boundingRect(largest_contour)
+                                
+                                # Convert local contour rect back to global image coordinates
+                                new_x1 = x1 + cx
+                                new_y1 = y1 + cy
+                                new_x2 = new_x1 + cw
+                                new_y2 = new_y1 + ch
+                                
+                                # Convert to YOLO normalized format
+                                w_norm = (new_x2 - new_x1) / img_w
+                                h_norm = (new_y2 - new_y1) / img_h
+                                x_center_norm = (new_x1 + new_x2) / 2.0 / img_w
+                                y_center_norm = (new_y1 + new_y2) / 2.0 / img_h
+                            else:
+                                raise ValueError("No contour")
+                        except Exception:
+                            # Fallback to the original YOLO prediction if OpenCV fails
+                            w_norm = (x2 - x1) / img_w
+                            h_norm = (y2 - y1) / img_h
+                            x_center_norm = (x1 + x2) / 2.0 / img_w
+                            y_center_norm = (y1 + y2) / 2.0 / img_h
+                            
+                        f.write(f"{int(cls_id)} {x_center_norm:.6f} {y_center_norm:.6f} {w_norm:.6f} {h_norm:.6f}\n")
 
     if mode == "Count & Analyze":
         with pd.ExcelWriter(str(out_dir / "pollen_counts.xlsx"), engine="openpyxl") as writer:
