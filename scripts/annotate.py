@@ -29,7 +29,7 @@ from pathlib import Path
 from tkinter import messagebox, ttk
 from typing import Optional
 
-from PIL import Image, ImageTk
+from PIL import Image, ImageTk, ImageDraw
 
 # ─── Project paths ──────────────────────────────────────────────────
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -342,6 +342,21 @@ class AnnotationApp:
         self.scale_slider.config(command=on_scale_drag)
         self.scale_slider.bind("<ButtonRelease-1>", on_scale_release)
 
+        # ── Sidebar: box opacity ────────────────────────────────
+        tk.Label(
+            sidebar, text="Box Opacity", font=("Segoe UI", 11, "bold"),
+            bg=SIDEBAR_BG, fg=ACCENT
+        ).pack(anchor=tk.W, padx=12, pady=(12, 2))
+
+        self.opacity_var = tk.DoubleVar(value=0.2)
+        self.opacity_slider = tk.Scale(
+            sidebar, from_=0.0, to=1.0, resolution=0.1, orient=tk.HORIZONTAL,
+            variable=self.opacity_var, bg=SIDEBAR_BG, fg=TEXT_COLOR, 
+            activebackground=ACCENT, highlightthickness=0, bd=0, command=lambda e: self._redraw_boxes()
+        )
+        self.opacity_slider.pack(fill=tk.X, padx=12)
+
+
         # ── Sidebar: instructions ───────────────────────────────────
         tk.Frame(sidebar, bg="#444466", height=1).pack(fill=tk.X, padx=12, pady=4)
 
@@ -370,6 +385,12 @@ class AnnotationApp:
         tk.Frame(sidebar, bg="#444466", height=1).pack(fill=tk.X, padx=12, pady=12)
 
         btn_style = {"font": ("Segoe UI", 10, "bold"), "width": 22, "cursor": "hand2", "bd": 0, "pady": 6}
+
+        self.export_btn = tk.Button(
+            sidebar, text="📸 Export to JPG", bg="#D97706", fg="white",
+            activebackground="#B45309", command=self._export_jpg, **btn_style
+        )
+        self.export_btn.pack(pady=2)
 
         self.prev_btn = tk.Button(
             sidebar, text="◀  Previous", bg="#3A3A5C", fg="white",
@@ -762,6 +783,38 @@ class AnnotationApp:
                 self.canvas_ids.append(rect_id)
 
         # Draw primary editable boxes
+        opacity = int(self.opacity_var.get() * 255)
+        if opacity > 0:
+            disp_w = int(self.orig_w * self.display_scale)
+            disp_h = int(self.orig_h * self.display_scale)
+            overlay_pil = Image.new("RGBA", (disp_w, disp_h), (0,0,0,0))
+            draw = ImageDraw.Draw(overlay_pil, "RGBA")
+
+            for box in self.boxes:
+                x1_n = box.x_center - box.w / 2
+                y1_n = box.y_center - box.h / 2
+                x2_n = box.x_center + box.w / 2
+                y2_n = box.y_center + box.h / 2
+                
+                cx1, cy1 = self._norm_to_canvas(x1_n, y1_n)
+                cx2, cy2 = self._norm_to_canvas(x2_n, y2_n)
+                
+                lx1 = cx1 - self.img_offset_x
+                ly1 = cy1 - self.img_offset_y
+                lx2 = cx2 - self.img_offset_x
+                ly2 = cy2 - self.img_offset_y
+                
+                is_microscopic = box.w < 0.005 or box.h < 0.005
+                is_massive = box.w > 0.5 or box.h > 0.5
+                color = (255, 0, 0) if (is_microscopic or is_massive) else (0, 255, 136)
+                
+                outline_w = 4 if (is_microscopic or is_massive) else 2
+                draw.rectangle([lx1, ly1, lx2, ly2], outline=(*color, opacity), width=outline_w)
+
+            self.overlay_tk = ImageTk.PhotoImage(overlay_pil)
+            overlay_id = self.canvas.create_image(self.img_offset_x, self.img_offset_y, anchor=tk.NW, image=self.overlay_tk)
+            self.canvas_ids.append(overlay_id)
+
         for i, box in enumerate(self.boxes):
             x1_n = box.x_center - box.w / 2
             y1_n = box.y_center - box.h / 2
@@ -771,29 +824,59 @@ class AnnotationApp:
             cx1, cy1 = self._norm_to_canvas(x1_n, y1_n)
             cx2, cy2 = self._norm_to_canvas(x2_n, y2_n)
 
-            # Sanity checks for annotation errors
-            is_microscopic = box.w < 0.005 or box.h < 0.005
-            is_massive = box.w > 0.5 or box.h > 0.5
-            color = "#FF0000" if (is_microscopic or is_massive) else BOX_COLOR
-            outline_w = 4 if (is_microscopic or is_massive) else 2
 
-            rect_id = self.canvas.create_rectangle(
-                cx1, cy1, cx2, cy2,
-                outline=color, width=outline_w
-            )
-            self.canvas_ids.append(rect_id)
 
+            color_str = "#FF0000" if (is_microscopic or is_massive) else BOX_COLOR
             # Small label
             label_id = self.canvas.create_text(
                 cx1 + 3, cy1 - 10,
                 text=f"#{i + 1}", anchor=tk.NW,
-                font=("Consolas", 8, "bold"), fill=color
+                font=("Consolas", 8, "bold"), fill=color_str
             )
             self.canvas_ids.append(label_id)
 
     # ════════════════════════════════════════════════════════════════
-    #  SAVE / LOAD
+    #  SAVE / LOAD / EXPORT
     # ════════════════════════════════════════════════════════════════
+
+    def _export_jpg(self):
+        """Export the current image and boxes to a JPG file."""
+        if not self.pil_img or not self.image_paths:
+            return
+            
+        path = self.image_paths[self.current_idx]
+        out_dir = PROJECT_ROOT / "output" / "annotated_images"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        
+        export_img = self.pil_img.copy().convert("RGBA")
+        overlay = Image.new("RGBA", export_img.size, (0,0,0,0))
+        draw = ImageDraw.Draw(overlay, "RGBA")
+        
+        opacity = int(self.opacity_var.get() * 255)
+        
+        for i, box in enumerate(self.boxes):
+            x1_n = box.x_center - box.w / 2
+            y1_n = box.y_center - box.h / 2
+            x2_n = box.x_center + box.w / 2
+            y2_n = box.y_center + box.h / 2
+            
+            x1 = x1_n * self.orig_w
+            y1 = y1_n * self.orig_h
+            x2 = x2_n * self.orig_w
+            y2 = y2_n * self.orig_h
+            
+            is_microscopic = box.w < 0.005 or box.h < 0.005
+            is_massive = box.w > 0.5 or box.h > 0.5
+            color = (255, 0, 0) if (is_microscopic or is_massive) else (0, 255, 136)
+            
+            draw.rectangle([x1, y1, x2, y2], outline=(*color, opacity), width=3)
+            # optional text
+            draw.text((x1 + 3, y1 - 15), f"#{i+1}", fill=(*color, 255))
+            
+        export_img = Image.alpha_composite(export_img, overlay).convert("RGB")
+        out_path = out_dir / path.name
+        export_img.save(out_path, quality=95)
+        self.status.config(text=f"✅ Exported JPG to {out_path.name}")
 
     def _clean_duplicates(self):
         """Remove boxes that overlap by more than 80% with another box."""

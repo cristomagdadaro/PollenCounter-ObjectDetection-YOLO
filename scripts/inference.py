@@ -59,6 +59,7 @@ def run_inference(
     imgsz: int,
     device: str,
     save_annotated_imgs: bool = True,
+    box_opacity: float = 0.3,
     progress_cb=None,
     log_cb=None
 ):
@@ -124,11 +125,15 @@ def run_inference(
             if save_annotated_imgs:
                 annotated_img = img.copy()
                 if n_detections > 0:
+                    box_overlay = img.copy()
                     for box in boxes.xyxy.cpu().tolist():
                         x1, y1, x2, y2 = box
                         x1_i, y1_i, x2_i, y2_i = int(x1), int(y1), int(x2), int(y2)
                         color = (random.randint(50, 255), random.randint(100, 255), random.randint(50, 255))
-                        cv2.rectangle(annotated_img, (x1_i, y1_i), (x2_i, y2_i), color=color, thickness=3)
+                        cv2.rectangle(box_overlay, (x1_i, y1_i), (x2_i, y2_i), color=color, thickness=3)
+                    
+                    # Blend the overlay for opacity
+                    cv2.addWeighted(box_overlay, box_opacity, annotated_img, 1.0 - box_opacity, 0, annotated_img)
 
                 overlay = annotated_img.copy()
                 text = str(n_detections)
@@ -221,6 +226,34 @@ def show_results_viewer(parent, summary_rows, in_dir, out_dir):
     
     btn_prev = ttk.Button(top_frame, text="<< Previous")
     btn_prev.pack(side=tk.LEFT, padx=10)
+    
+    def save_current_image():
+        idx = current_idx[0]
+        row = summary_rows[idx]
+        img_name = row["filename"]
+        annot_path = out_dir / "annotated" / img_name
+        
+        if not annot_path.exists():
+            from tkinter import messagebox
+            messagebox.showerror("Error", "Annotated image not found!")
+            return
+            
+        from tkinter import filedialog
+        import shutil
+        
+        default_name = f"{Path(img_name).stem}_annotated.jpg"
+        save_path = filedialog.asksaveasfilename(
+            title="Save Annotated Image",
+            initialfile=default_name,
+            defaultextension=".jpg",
+            filetypes=[("JPEG files", "*.jpg"), ("All files", "*.*")]
+        )
+        
+        if save_path:
+            shutil.copy(annot_path, save_path)
+            
+    btn_save = ttk.Button(top_frame, text="📸 Save Image", command=save_current_image)
+    btn_save.pack(side=tk.LEFT, padx=5)
     
     zoom_enabled = tk.BooleanVar(value=True)
     ttk.Checkbutton(top_frame, text="Zoom on Hover", variable=zoom_enabled).pack(side=tk.LEFT, padx=10)
@@ -347,6 +380,7 @@ def run_gui():
     var_conf = tk.StringVar(value=str(saved_settings.get("conf", "0.03")))
     var_imgsz = tk.StringVar(value=str(saved_settings.get("imgsz", "1024")))
     var_device = tk.StringVar(value=str(saved_settings.get("device", "0")))
+    var_opacity = tk.DoubleVar(value=float(saved_settings.get("opacity", 0.3)))
     
     def make_row(parent, label_text, var, browse_func=None, is_combo=False, combo_vals=None):
         frame = tk.Frame(parent, bg=BG_COLOR)
@@ -372,6 +406,11 @@ def run_gui():
     make_row(root, "Confidence:", var_conf)
     make_row(root, "Image Size:", var_imgsz)
     make_row(root, "Device:", var_device)
+    
+    frame_op = tk.Frame(root, bg=BG_COLOR)
+    frame_op.pack(fill=tk.X, padx=20, pady=5)
+    tk.Label(frame_op, text="Box Opacity:", font=FONT_LABEL, bg=BG_COLOR, fg=FG_COLOR, width=15, anchor="w").pack(side=tk.LEFT)
+    tk.Scale(frame_op, from_=0.0, to=1.0, resolution=0.1, orient=tk.HORIZONTAL, variable=var_opacity, bg=BG_COLOR, fg=FG_COLOR, highlightthickness=0, bd=0, activebackground=BTN_BG).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
     
     # Pack the bottom frame FIRST so it always claims the bottom of the window
     bot_frame = tk.Frame(root, bg=BG_COLOR)
@@ -403,12 +442,32 @@ def run_gui():
     btn_frame = tk.Frame(bot_frame, bg=BG_COLOR)
     btn_frame.pack(fill=tk.X)
     
-    btn_view = tk.Button(btn_frame, text="🔍 View Results", font=("Segoe UI", 11, "bold"), bg="#F9E2AF", fg="#11111B", bd=0, cursor="hand2", state=tk.DISABLED)
-    btn_view.pack(side=tk.RIGHT, ipady=6, ipadx=10)
+    def open_annotator():
+        import subprocess
+        out = Path(var_out.get())
+        subprocess.Popen([sys.executable, "scripts/annotate.py", "--images", str(out / "images" / "review"), "--labels", str(out / "labels" / "review")])
+        
+    def open_viewer():
+        out = Path(var_out.get())
+        in_dir = Path(var_input.get())
+        csv_path = out / "pollen_counts.xlsx"
+        if not csv_path.exists():
+            messagebox.showinfo("Not Found", "No pollen_counts.xlsx found in the output directory.\nRun 'Count & Analyze' first!")
+            return
+        try:
+            summary = pd.read_excel(csv_path, sheet_name="Summary").to_dict('records')
+            show_results_viewer(root, summary, in_dir, out)
+        except Exception as e:
+            messagebox.showerror("Error", f"Could not load results: {e}")
+
+    btn_open_annot = tk.Button(btn_frame, text="✏️ Annotator", font=("Segoe UI", 11, "bold"), bg="#F9E2AF", fg="#11111B", bd=0, cursor="hand2", command=open_annotator)
+    btn_open_annot.pack(side=tk.RIGHT, ipady=6, ipadx=5)
+    
+    btn_open_view = tk.Button(btn_frame, text="🔍 Viewer", font=("Segoe UI", 11, "bold"), bg="#F9E2AF", fg="#11111B", bd=0, cursor="hand2", command=open_viewer)
+    btn_open_view.pack(side=tk.RIGHT, ipady=6, ipadx=5, padx=(0, 10))
     
     def start_processing():
         btn_run.config(state=tk.DISABLED, text="Running...")
-        btn_view.config(state=tk.DISABLED)
         log_text.config(state=tk.NORMAL)
         log_text.delete(1.0, tk.END)
         log_text.config(state=tk.DISABLED)
@@ -422,7 +481,8 @@ def run_gui():
                 "weights": var_weights.get(),
                 "conf": var_conf.get(),
                 "imgsz": var_imgsz.get(),
-                "device": var_device.get()
+                "device": var_device.get(),
+                "opacity": var_opacity.get()
             }
             CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
             with open(CONFIG_FILE, "w") as f:
@@ -444,16 +504,9 @@ def run_gui():
                 summary = run_inference(
                     mode=var_mode.get(), model=model, image_paths=images,
                     out_dir=out_dir, conf=float(var_conf.get()), imgsz=int(var_imgsz.get()),
-                    device=var_device.get(), progress_cb=progress_cb
+                    device=var_device.get(),
+                    box_opacity=float(var_opacity.get()), progress_cb=progress_cb
                 )
-                
-                if var_mode.get() == "Count & Analyze" and summary:
-                    root.after(0, lambda: btn_view.config(text="🔍 View Results", state=tk.NORMAL, command=lambda: show_results_viewer(root, summary, in_dir, out_dir)))
-                elif var_mode.get() == "Auto-Annotate":
-                    import subprocess
-                    def launch_annotator():
-                        subprocess.Popen([sys.executable, "scripts/annotate.py", "--images", str(out_dir / "images" / "review"), "--labels", str(out_dir / "labels" / "review")])
-                    root.after(0, lambda: btn_view.config(text="✏️ Open Annotator", state=tk.NORMAL, command=launch_annotator))
                 
                 root.after(0, lambda: log_cb(f"\nDone! Processed {len(images)} images.\nSaved to {out_dir}"))
             except Exception as e:
