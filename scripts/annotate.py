@@ -673,6 +673,7 @@ class AnnotationApp:
             return
 
         box = BoundingBox(xc, yc, w, h, class_id=0)
+        self._snap_single_box(box)
         self.boxes.append(box)
 
         self._redraw_boxes()
@@ -733,6 +734,7 @@ class AnnotationApp:
         ny = max(self.default_h / 2, min(1.0 - self.default_h / 2, ny))
         
         box = BoundingBox(nx, ny, self.default_w, self.default_h, class_id=0)
+        self._snap_single_box(box)
         self.boxes.append(box)
         
         self._redraw_boxes()
@@ -770,6 +772,43 @@ class AnnotationApp:
         for cid in self.canvas_ids:
             self.canvas.delete(cid)
         self.canvas_ids.clear()
+        
+        box_colors = []
+        box_color_strs = []
+        box_line_widths = []
+        
+        for i, box in enumerate(self.boxes):
+            is_massive = box.w > 0.5 or box.h > 0.5
+            if is_massive:
+                box_colors.append((255, 0, 0))
+                box_color_strs.append("#FF0000")
+                box_line_widths.append(4)
+                continue
+                
+            x1 = box.x_center - box.w / 2
+            y1 = box.y_center - box.h / 2
+            x2 = box.x_center + box.w / 2
+            y2 = box.y_center + box.h / 2
+            
+            is_overlap = False
+            for j, other in enumerate(self.boxes):
+                if i == j: continue
+                ox1 = other.x_center - other.w / 2
+                oy1 = other.y_center - other.h / 2
+                ox2 = other.x_center + other.w / 2
+                oy2 = other.y_center + other.h / 2
+                if not (x2 <= ox1 or x1 >= ox2 or y2 <= oy1 or y1 >= oy2):
+                    is_overlap = True
+                    break
+                    
+            if is_overlap:
+                box_colors.append((245, 158, 11))
+                box_color_strs.append("#F59E0B")
+                box_line_widths.append(3)
+            else:
+                box_colors.append((0, 255, 136))
+                box_color_strs.append(BOX_COLOR)
+                box_line_widths.append(2)
 
         # Draw comparison boxes if enabled
         if hasattr(self, 'compare_labels_dir') and self.compare_labels_dir and self.show_compare.get():
@@ -810,10 +849,8 @@ class AnnotationApp:
                 lx2 = cx2 - self.img_offset_x
                 ly2 = cy2 - self.img_offset_y
                 
-                is_massive = box.w > 0.5 or box.h > 0.5
-                color = (255, 0, 0) if is_massive else (0, 255, 136)
-                
-                outline_w = 4 if is_massive else 2
+                color = box_colors[i]
+                outline_w = box_line_widths[i]
                 draw.rectangle([lx1, ly1, lx2, ly2], outline=(*color, opacity), width=outline_w)
 
             self.overlay_tk = ImageTk.PhotoImage(overlay_pil)
@@ -831,8 +868,7 @@ class AnnotationApp:
 
 
 
-            is_massive = box.w > 0.5 or box.h > 0.5
-            color_str = "#FF0000" if is_massive else BOX_COLOR
+            color_str = box_color_strs[i]
             # Small label
             label_id = self.canvas.create_text(
                 cx1 + 3, cy1 - 10,
@@ -872,7 +908,25 @@ class AnnotationApp:
             y2 = y2_n * self.orig_h
             
             is_massive = box.w > 0.5 or box.h > 0.5
-            color = (255, 0, 0) if is_massive else (0, 255, 136)
+            
+            is_overlap = False
+            if not is_massive:
+                for j, other in enumerate(self.boxes):
+                    if i == j: continue
+                    ox1 = other.x_center - other.w / 2
+                    oy1 = other.y_center - other.h / 2
+                    ox2 = other.x_center + other.w / 2
+                    oy2 = other.y_center + other.h / 2
+                    if not (x2_n <= ox1 or x1_n >= ox2 or y2_n <= oy1 or y1_n >= oy2):
+                        is_overlap = True
+                        break
+                        
+            if is_massive:
+                color = (255, 0, 0)
+            elif is_overlap:
+                color = (245, 158, 11)
+            else:
+                color = (0, 255, 136)
             
             draw.rectangle([x1, y1, x2, y2], outline=(*color, opacity), width=3)
             # optional text
@@ -883,57 +937,60 @@ class AnnotationApp:
         export_img.save(out_path, quality=95)
         self.status.config(text=f"✅ Exported JPG to {out_path.name}")
 
+    def _snap_single_box(self, box):
+        if not self.pil_img: return False
+        import cv2, numpy as np
+        try:
+            img_bgr = cv2.cvtColor(np.array(self.pil_img), cv2.COLOR_RGB2BGR)
+        except Exception:
+            return False
+            
+        img_h, img_w = img_bgr.shape[:2]
+        x1 = int((box.x_center - box.w / 2) * img_w)
+        y1 = int((box.y_center - box.h / 2) * img_h)
+        x2 = int((box.x_center + box.w / 2) * img_w)
+        y2 = int((box.y_center + box.h / 2) * img_h)
+        
+        x1, y1 = max(0, x1), max(0, y1)
+        x2, y2 = min(img_w, x2), min(img_h, y2)
+        
+        if x2 <= x1 or y2 <= y1: return False
+            
+        roi = img_bgr[y1:y2, x1:x2]
+        try:
+            gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+            blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+            _, thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+            
+            contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            if contours:
+                largest_contour = max(contours, key=cv2.contourArea)
+                cx, cy, cw, ch = cv2.boundingRect(largest_contour)
+                
+                pad_w = int(cw * 0.08)
+                pad_h = int(ch * 0.08)
+                new_x1 = max(0, x1 + cx - pad_w)
+                new_y1 = max(0, y1 + cy - pad_h)
+                new_x2 = min(img_w, x1 + cx + cw + pad_w)
+                new_y2 = min(img_h, y1 + cy + ch + pad_h)
+                
+                box.w = (new_x2 - new_x1) / img_w
+                box.h = (new_y2 - new_y1) / img_h
+                box.x_center = (new_x1 + new_x2) / 2.0 / img_w
+                box.y_center = (new_y1 + new_y2) / 2.0 / img_h
+                return True
+        except Exception:
+            pass
+        return False
+
     def _snap_boxes(self):
         """Recompute bounding boxes to snap perfectly to pollen edges using OpenCV."""
-        if not self.pil_img or not self.boxes:
-            return
-            
-        import cv2
-        import numpy as np
-        
-        img_bgr = cv2.cvtColor(np.array(self.pil_img), cv2.COLOR_RGB2BGR)
-        img_h, img_w = img_bgr.shape[:2]
+        if not self.pil_img or not self.boxes: return
         
         updated = 0
         for box in self.boxes:
-            x1 = int((box.x_center - box.w / 2) * img_w)
-            y1 = int((box.y_center - box.h / 2) * img_h)
-            x2 = int((box.x_center + box.w / 2) * img_w)
-            y2 = int((box.y_center + box.h / 2) * img_h)
-            
-            x1, y1 = max(0, x1), max(0, y1)
-            x2, y2 = min(img_w, x2), min(img_h, y2)
-            
-            if x2 <= x1 or y2 <= y1:
-                continue
-                
-            roi = img_bgr[y1:y2, x1:x2]
-            
-            try:
-                gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-                blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-                _, thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-                
-                contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-                
-                if contours:
-                    largest_contour = max(contours, key=cv2.contourArea)
-                    cx, cy, cw, ch = cv2.boundingRect(largest_contour)
-                    
-                    pad_w = int(cw * 0.08)
-                    pad_h = int(ch * 0.08)
-                    new_x1 = max(0, x1 + cx - pad_w)
-                    new_y1 = max(0, y1 + cy - pad_h)
-                    new_x2 = min(img_w, x1 + cx + cw + pad_w)
-                    new_y2 = min(img_h, y1 + cy + ch + pad_h)
-                    
-                    box.w = (new_x2 - new_x1) / img_w
-                    box.h = (new_y2 - new_y1) / img_h
-                    box.x_center = (new_x1 + new_x2) / 2.0 / img_w
-                    box.y_center = (new_y1 + new_y2) / 2.0 / img_h
-                    updated += 1
-            except Exception:
-                pass
+            if self._snap_single_box(box):
+                updated += 1
                 
         self._redraw_boxes()
         self._save_labels()
