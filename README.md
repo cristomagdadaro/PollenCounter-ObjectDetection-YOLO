@@ -52,6 +52,7 @@ To ensure continuous improvement, log the results of every major training run he
 | **Jul 20** | 63 (K-Fold=5) | `yolo11s.pt` | 1024 | 4 | 150 | **49.8%** | *Upgraded to K-Fold Cross Validation. Massive ~18% improvement in accuracy due to robust dataset splitting.* |
 | **Jul 20** | 79 Train / 10 Val | `yolo11n.pt` | 1024 | - | 150 | **55.3%** | *Active learning dataset scaling! Massive jump in accuracy by simply feeding the model more corrected data.* |
 | **Jul 21** | 165 Train / 20 Val | `yolo11n.pt` | 1024 | 4 | 150 | **61.3%** | *Breakthrough! First time breaking 60%. Precision (69.7%) and Recall (67.4%) are incredibly balanced. Nano model is now reaching its limits.* |
+| **Jul 21** | 164 Train / 20 Val | `yolo11s.pt` | 1024 | 4 | 150 | **57.7%** | *Attempted to upgrade to YOLO11s, but accuracy dropped compared to Nano. Model peaked too early (Epoch 50). Conclusion: ~165 images is still not enough data for the larger 'Small' model. Reverting to Nano until dataset hits 300+.* |
 
 *Remember to update this table every time a new dataset batch is annotated or a major training setting is changed!*
 
