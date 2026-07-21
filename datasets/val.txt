@@ -1,3 +1,6 @@
+C:/laragon/www/PollenCounter-ObjectDetection-YOLO/datasets/images/val/1376_1_Pollen_3July2025_1.2x_I2KI.jpg
+C:/laragon/www/PollenCounter-ObjectDetection-YOLO/datasets/images/val/1376_2_Pollen_3July2025_1.2x_I2KI.jpg
+C:/laragon/www/PollenCounter-ObjectDetection-YOLO/datasets/images/val/1376_3_Pollen_3July2025_1.2x_I2KI.jpg
 C:/laragon/www/PollenCounter-ObjectDetection-YOLO/datasets/images/val/1427_5_pollen_3July2025_1.2x_I2KI.jpg
 C:/laragon/www/PollenCounter-ObjectDetection-YOLO/datasets/images/val/160_2_pollen_11June2025_1.5x_P1.jpg
 C:/laragon/www/PollenCounter-ObjectDetection-YOLO/datasets/images/val/160_5_pollen_11June2025_1.5x_P2.jpg
