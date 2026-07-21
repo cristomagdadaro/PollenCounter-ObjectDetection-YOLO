@@ -285,7 +285,7 @@ def show_results_viewer(parent, summary_rows, in_dir, out_dir):
     zoom_win = tk.Toplevel(viewer)
     zoom_win.withdraw()
     zoom_win.overrideredirect(True)
-    zoom_lbl = tk.Label(zoom_win, bd=2, relief="solid", bg="black")
+    zoom_lbl = tk.Label(zoom_win, bd=2, relief="solid", bg="#CCCCCC")
     zoom_lbl.pack()
     
     def handle_hover(event, img_type, lbl):
@@ -359,10 +359,10 @@ def run_gui():
     
     FONT_LABEL = ("Segoe UI", 10, "bold")
     FONT_INPUT = ("Consolas", 10)
-    BG_COLOR = "#1E1E2E"
-    FG_COLOR = "#CDD6F4"
-    ACCENT_COLOR = "#89B4FA"
-    BTN_BG = "#313244"
+    BG_COLOR = "#FFFFFF"
+    FG_COLOR = "#000000"
+    ACCENT_COLOR = "#0000FF"
+    BTN_BG = "#CCCCCC"
     
     tk.Label(root, text=" Unified YOLO Inference", font=("Segoe UI", 14, "bold"), bg=BG_COLOR, fg=ACCENT_COLOR).pack(pady=10)
     
@@ -393,7 +393,7 @@ def run_gui():
             cb = ttk.Combobox(frame, textvariable=var, values=combo_vals, state="readonly", font=FONT_INPUT)
             cb.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
         else:
-            tk.Entry(frame, textvariable=var, font=FONT_INPUT, bg="#181825", fg="#A6ADC8", insertbackground="white", bd=0).pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=4, padx=5)
+            tk.Entry(frame, textvariable=var, font=FONT_INPUT, bg="#F0F0F0", fg="#000000", insertbackground="black", bd=0).pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=4, padx=5)
             
         if browse_func:
             tk.Button(frame, text="Browse", command=browse_func, bg=BTN_BG, fg=FG_COLOR, bd=0, cursor="hand2").pack(side=tk.RIGHT, ipadx=5, ipady=2)
@@ -419,9 +419,9 @@ def run_gui():
     bot_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=15)
     
     # Now pack the log frame which will expand to fill the REMAINING space
-    log_frame = tk.Frame(root, bg="#11111B")
+    log_frame = tk.Frame(root, bg="#F0F0F0")
     log_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
-    log_text = tk.Text(log_frame, bg="#11111B", fg="#A6ADC8", font=FONT_INPUT, bd=0, state=tk.DISABLED)
+    log_text = tk.Text(log_frame, bg="#F0F0F0", fg="#000000", font=FONT_INPUT, bd=0, state=tk.DISABLED)
     log_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
     
     def log_cb(message):

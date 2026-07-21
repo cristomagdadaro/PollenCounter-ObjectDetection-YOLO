@@ -43,15 +43,15 @@ EXCLUDED_LABELS = PROJECT_ROOT / "datasets" / "labels" / "excluded"
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".webp"}
 
 # ─── Colours ────────────────────────────────────────────────────────
-BOX_COLOR = "#00FF88"
-BOX_COLOR_HOVER = "#FF4444"
-ACTIVE_BOX_COLOR = "#FFAA00"
-BG_COLOR = "#1E1E2E"
-SIDEBAR_BG = "#2A2A3C"
-ACCENT = "#7C3AED"
-TEXT_COLOR = "#E0E0E0"
-PROGRESS_DONE = "#00FF88"
-PROGRESS_TODO = "#444466"
+BOX_COLOR = "#00AA00"
+BOX_COLOR_HOVER = "#FF0000"
+ACTIVE_BOX_COLOR = "#CCCC00"
+BG_COLOR = "#FFFFFF"
+SIDEBAR_BG = "#F0F0F0"
+ACCENT = "#0000FF"
+TEXT_COLOR = "#000000"
+PROGRESS_DONE = "#00AA00"
+PROGRESS_TODO = "#CCCCCC"
 
 
 class BoundingBox:
@@ -192,7 +192,7 @@ class AnnotationApp:
         ).pack(side=tk.LEFT, padx=16)
 
         self.progress_label = tk.Label(
-            top, text="", font=("Segoe UI", 11), bg=ACCENT, fg="#DDD"
+            top, text="", font=("Segoe UI", 11), bg=ACCENT, fg="#FFFFFF"
         )
         self.progress_label.pack(side=tk.RIGHT, padx=16)
 
@@ -201,11 +201,11 @@ class AnnotationApp:
         main.pack(fill=tk.BOTH, expand=True)
 
         # Canvas
-        canvas_frame = tk.Frame(main, bg="#000000", bd=2, relief=tk.SUNKEN)
+        canvas_frame = tk.Frame(main, bg="#CCCCCC", bd=2, relief=tk.SUNKEN)
         canvas_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(8, 4), pady=8)
 
         self.canvas = tk.Canvas(
-            canvas_frame, bg="#111111", cursor="crosshair",
+            canvas_frame, bg="#FFFFFF", cursor="crosshair",
             highlightthickness=0
         )
         self.vbar = ttk.Scrollbar(canvas_frame, orient=tk.VERTICAL, command=self.canvas.yview)
@@ -236,7 +236,7 @@ class AnnotationApp:
         self.dataset_combo.pack(fill=tk.X, padx=12, pady=(0, 8))
         self.dataset_combo.bind("<<ComboboxSelected>>", self._change_dataset)
 
-        tk.Frame(sidebar, bg="#444466", height=1).pack(fill=tk.X, padx=12, pady=4)
+        tk.Frame(sidebar, bg="#CCCCCC", height=1).pack(fill=tk.X, padx=12, pady=4)
 
         # ── Sidebar: file info ──────────────────────────────────────
         tk.Label(
@@ -244,19 +244,19 @@ class AnnotationApp:
             bg=SIDEBAR_BG, fg=ACCENT
         ).pack(anchor=tk.W, padx=12, pady=(8, 2))
 
-        self.file_label = tk.Label(
-            sidebar, text="", font=("Consolas", 10), bg=SIDEBAR_BG, fg=TEXT_COLOR,
-            wraplength=230, justify=tk.LEFT
+        self.image_combo = ttk.Combobox(
+            sidebar, state="readonly", font=("Consolas", 9)
         )
-        self.file_label.pack(anchor=tk.W, padx=12)
+        self.image_combo.pack(fill=tk.X, padx=12, pady=(0, 2))
+        self.image_combo.bind("<<ComboboxSelected>>", self._on_combo_jump)
 
         self.size_label = tk.Label(
-            sidebar, text="", font=("Consolas", 9), bg=SIDEBAR_BG, fg="#888"
+            sidebar, text="", font=("Consolas", 9), bg=SIDEBAR_BG, fg="#666666"
         )
         self.size_label.pack(anchor=tk.W, padx=12, pady=(0, 8))
 
         # ── Sidebar: box count ──────────────────────────────────────
-        tk.Frame(sidebar, bg="#444466", height=1).pack(fill=tk.X, padx=12, pady=4)
+        tk.Frame(sidebar, bg="#CCCCCC", height=1).pack(fill=tk.X, padx=12, pady=4)
 
         self.count_label = tk.Label(
             sidebar, text="Boxes: 0", font=("Segoe UI", 20, "bold"),
@@ -277,7 +277,7 @@ class AnnotationApp:
             self.chk_compare.config(state=tk.DISABLED)
 
         # ── Sidebar: auto box size ──────────────────────────────────
-        tk.Frame(sidebar, bg="#444466", height=1).pack(fill=tk.X, padx=12, pady=4)
+        tk.Frame(sidebar, bg="#CCCCCC", height=1).pack(fill=tk.X, padx=12, pady=4)
         tk.Label(
             sidebar, text="Auto-Box Size (px)", font=("Segoe UI", 11, "bold"),
             bg=SIDEBAR_BG, fg=ACCENT
@@ -287,11 +287,11 @@ class AnnotationApp:
         size_frame.pack(anchor=tk.W, padx=12, pady=(0, 4))
 
         tk.Label(size_frame, text="W:", font=("Consolas", 9), bg=SIDEBAR_BG, fg=TEXT_COLOR).pack(side=tk.LEFT)
-        self.entry_w = tk.Entry(size_frame, width=5, font=("Consolas", 10), bg="#333", fg="white", insertbackground="white", bd=0)
+        self.entry_w = tk.Entry(size_frame, width=5, font=("Consolas", 10), bg="#FFFFFF", fg="white", insertbackground="black", bd=0)
         self.entry_w.pack(side=tk.LEFT, padx=(2, 8))
 
         tk.Label(size_frame, text="H:", font=("Consolas", 9), bg=SIDEBAR_BG, fg=TEXT_COLOR).pack(side=tk.LEFT)
-        self.entry_h = tk.Entry(size_frame, width=5, font=("Consolas", 10), bg="#333", fg="white", insertbackground="white", bd=0)
+        self.entry_h = tk.Entry(size_frame, width=5, font=("Consolas", 10), bg="#FFFFFF", fg="white", insertbackground="black", bd=0)
         self.entry_h.pack(side=tk.LEFT, padx=(2, 0))
         self.entry_w.bind("<KeyRelease>", self._update_auto_size)
         self.entry_h.bind("<KeyRelease>", self._update_auto_size)
@@ -358,7 +358,7 @@ class AnnotationApp:
 
 
         # ── Sidebar: instructions ───────────────────────────────────
-        tk.Frame(sidebar, bg="#444466", height=1).pack(fill=tk.X, padx=12, pady=4)
+        tk.Frame(sidebar, bg="#CCCCCC", height=1).pack(fill=tk.X, padx=12, pady=4)
 
         instructions = [
             ("🖱 Drag", "Draw box"),
@@ -378,11 +378,11 @@ class AnnotationApp:
         for key, action in instructions:
             row = tk.Frame(sidebar, bg=SIDEBAR_BG)
             row.pack(anchor=tk.W, padx=12, pady=1)
-            tk.Label(row, text=key, font=("Consolas", 9, "bold"), bg=SIDEBAR_BG, fg="#AAA", width=14, anchor=tk.W).pack(side=tk.LEFT)
+            tk.Label(row, text=key, font=("Consolas", 9, "bold"), bg=SIDEBAR_BG, fg="#333333", width=14, anchor=tk.W).pack(side=tk.LEFT)
             tk.Label(row, text=action, font=("Segoe UI", 9), bg=SIDEBAR_BG, fg=TEXT_COLOR).pack(side=tk.LEFT)
 
         # ── Sidebar: buttons ────────────────────────────────────────
-        tk.Frame(sidebar, bg="#444466", height=1).pack(fill=tk.X, padx=12, pady=12)
+        tk.Frame(sidebar, bg="#CCCCCC", height=1).pack(fill=tk.X, padx=12, pady=12)
 
         btn_style = {"font": ("Segoe UI", 10, "bold"), "width": 22, "cursor": "hand2", "bd": 0, "pady": 6}
 
@@ -399,8 +399,8 @@ class AnnotationApp:
         self.export_btn.pack(pady=2)
 
         self.prev_btn = tk.Button(
-            sidebar, text="  Previous", bg="#3A3A5C", fg="white",
-            activebackground="#4A4A6C", command=self._prev_image, **btn_style
+            sidebar, text="  Previous", bg="#888888", fg="white",
+            activebackground="#666666", command=self._prev_image, **btn_style
         )
         self.prev_btn.pack(pady=2)
 
@@ -410,7 +410,7 @@ class AnnotationApp:
         )
         self.next_btn.pack(pady=2)
 
-        tk.Frame(sidebar, bg="#444466", height=1).pack(fill=tk.X, padx=12, pady=8)
+        tk.Frame(sidebar, bg="#CCCCCC", height=1).pack(fill=tk.X, padx=12, pady=8)
 
         self.clear_btn = tk.Button(
             sidebar, text="  Clear All Boxes", bg="#DC2626", fg="white",
@@ -418,7 +418,7 @@ class AnnotationApp:
         )
         self.clear_btn.pack(pady=2)
 
-        tk.Frame(sidebar, bg="#444466", height=1).pack(fill=tk.X, padx=12, pady=8)
+        tk.Frame(sidebar, bg="#CCCCCC", height=1).pack(fill=tk.X, padx=12, pady=8)
 
         tk.Label(
             sidebar, text="Dataset Management", font=("Segoe UI", 11, "bold"),
@@ -443,7 +443,7 @@ class AnnotationApp:
         )
         self.exclude_btn.pack(pady=2)
 
-        tk.Frame(sidebar, bg="#444466", height=1).pack(fill=tk.X, padx=12, pady=4)
+        tk.Frame(sidebar, bg="#CCCCCC", height=1).pack(fill=tk.X, padx=12, pady=4)
 
         self.delete_btn = tk.Button(
             sidebar, text=" Delete Permanently", bg="#7F1D1D", fg="white",
@@ -454,7 +454,7 @@ class AnnotationApp:
         # ── Status bar ──────────────────────────────────────────────
         self.status = tk.Label(
             self.root, text="Ready", font=("Segoe UI", 9),
-            bg="#16161E", fg="#888", anchor=tk.W, padx=8
+            bg="#E0E0E0", fg="#666666", anchor=tk.W, padx=8
         )
         self.status.pack(fill=tk.X, side=tk.BOTTOM)
 
@@ -1047,6 +1047,18 @@ class AnnotationApp:
             self.current_idx -= 1
             self._load_image()
 
+    def _on_combo_jump(self, event=None):
+        if not self.image_paths: return
+        selected_name = self.image_combo.get()
+        try:
+            idx = next(i for i, p in enumerate(self.image_paths) if p.name == selected_name)
+            if idx != self.current_idx:
+                self._save_labels()
+                self.current_idx = idx
+                self._load_image()
+        except StopIteration:
+            pass
+
     def _delete_image(self):
         if not self.image_paths: return
         
@@ -1182,7 +1194,8 @@ class AnnotationApp:
     def _update_ui(self):
         total = len(self.image_paths)
         if total == 0:
-            self.file_label.config(text="")
+            self.image_combo.set("")
+            self.image_combo.config(values=[])
             self.size_label.config(text="")
             self.count_label.config(text="Boxes: 0")
             self.progress_label.config(text=f"0/0    0 annotated")
@@ -1206,7 +1219,11 @@ class AnnotationApp:
             and (self.labels_dir / f"{p.stem}.txt").stat().st_size > 0
         )
 
-        self.file_label.config(text=img_path.name)
+        current_names = [p.name for p in self.image_paths]
+        if list(self.image_combo["values"]) != current_names:
+            self.image_combo.config(values=current_names)
+        self.image_combo.set(img_path.name)
+        
         self.size_label.config(text=f"{self.orig_w} × {self.orig_h} px")
         self.count_label.config(text=f"Boxes: {len(self.boxes)}")
         self.progress_label.config(text=f"Image {idx}/{total}    {annotated} annotated")
