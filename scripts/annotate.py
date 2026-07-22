@@ -1007,7 +1007,7 @@ class AnnotationApp:
             if i in to_remove: continue
             for j in range(i + 1, len(self.boxes)):
                 if j in to_remove: continue
-                if self.boxes[i].iou(self.boxes[j]) > 0.8:
+                if self.boxes[i].iou(self.boxes[j]) > 0.6:
                     to_remove.add(j)
                     
         if to_remove:
