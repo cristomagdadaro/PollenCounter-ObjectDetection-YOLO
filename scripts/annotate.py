@@ -352,8 +352,9 @@ class AnnotationApp:
         self.opacity_slider = tk.Scale(
             sidebar, from_=0.0, to=1.0, resolution=0.1, orient=tk.HORIZONTAL,
             variable=self.opacity_var, bg=SIDEBAR_BG, fg=TEXT_COLOR, 
-            activebackground=ACCENT, highlightthickness=0, bd=0, command=lambda e: self._redraw_boxes()
+            activebackground=ACCENT, highlightthickness=0, bd=0
         )
+        self.opacity_slider.bind("<ButtonRelease-1>", lambda e: self._redraw_boxes())
         self.opacity_slider.pack(fill=tk.X, padx=12)
 
 
