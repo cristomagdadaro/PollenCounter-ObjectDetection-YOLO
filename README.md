@@ -51,29 +51,35 @@ To ensure continuous improvement, log the results of every major training run he
 | **Jul 20** | ~50 Train / ~13 Val | `yolo11s.pt` | 1024 | 4 | 150 | **31.8%** | *Standard run (no K-Fold). Model struggled to generalize.* |
 | **Jul 20** | 63 (K-Fold=5) | `yolo11s.pt` | 1024 | 4 | 150 | **49.8%** | *Upgraded to K-Fold Cross Validation. Massive ~18% improvement in accuracy due to robust dataset splitting.* |
 | **Jul 20** | 79 Train / 10 Val | `yolo11n.pt` | 1024 | - | 150 | **55.3%** | *Active learning dataset scaling! Massive jump in accuracy by simply feeding the model more corrected data.* |
-| **Jul 21** | 165 Train / 20 Val | `yolo11n.pt` | 1024 | 4 | 150 | **61.3%** | *Breakthrough! First time breaking 60%. Precision (69.7%) and Recall (67.4%) are incredibly balanced. Nano model is now reaching its limits.* |
-| **Jul 21** | 164 Train / 20 Val | `yolo11s.pt` | 1024 | 4 | 150 | **57.7%** | *Attempted to upgrade to YOLO11s, but accuracy dropped compared to Nano. Model peaked too early (Epoch 50). Conclusion: ~165 images is still not enough data for the larger 'Small' model. Reverting to Nano until dataset hits 300+.* |
+| **Jul 21** | 165 Train / 20 Val | `yolo11n.pt` | 1024 | 4 | 150 | **61.3%** | *Breakthrough! First time breaking 60%. Precision (69.7%) and Recall (67.4%) are incredibly balanced. Nano model is now reaching its limits.* || **Jul 21** | 164 Train / 20 Val | `yolo11s.pt` | 1024 | 4 | 150 | **57.7%** | *Attempted to upgrade to YOLO11s, but accuracy dropped compared to Nano. Model peaked too early (Epoch 50). Conclusion: ~165 images is still not enough data for the larger 'Small' model. Reverting to Nano until dataset hits 300+.* |
+| **Jul 22** | 164 Train / 20 Val | `yolo11n.pt` | 1024 | 4 | 150 | **54.4%** | *Pre-purge baseline. High score was artificially inflated due to overlapping duplicate bounding boxes in the dataset.* |
+| **Jul 22** | 192 Train / 14 Val | `yolo11n.pt` | 1024 | 4 | 150 | **41.1%** | *True Baseline! Dataset was purged of hundreds of corrupted duplicate boxes using `clean_all_duplicates.py`. This is the first honest, un-inflated metric on a fully sanitized dataset.* |
+| **Jul 22** | 192 Train / 14 Val | `yolo11n.pt` | 1024 | 4 | 100 | **50.0%** | *Extreme Augmentation Run (`scale=0.5, hsv=0.4, translate=0.3`). By forcing the model to learn on chaotic, heavily augmented images, accuracy surged from 41% to 50% (peaking at 51.3% mid-training).* |
 
 *Remember to update this table every time a new dataset batch is annotated or a major training setting is changed!*
 
 ---
 
-##  Annotation GUI Tool
+##  Interactive GUI Tools
 
-A built-in Tkinter GUI is provided to rapidly build your dataset.
+This project features three custom-built Tkinter desktop applications to make managing, evaluating, and utilizing your dataset incredibly fast.
 
-```bash
-python scripts/annotate.py
-```
+### 1. Dataset Annotator (`scripts/annotate.py`)
+Rapidly build your dataset manually or fix auto-annotated active-learning images.
+- **OpenCV Auto-Snapping:** Perfectly "shrink-wraps" your drawn bounding boxes around the dark pollen grain automatically (with an 8% padding to preserve blurry edges).
+- **Visual Error Warnings:** Boxes are color-coded in real-time. **Green** (Normal), **Orange** (Overlapping), **Red** (Oversized).
+- **Move/Exclude:** Instantly move images between Train, Validation, or Excluded folders.
 
-### Dataset Management & Annotation Features
-- **OpenCV Auto-Snapping:** Just draw a rough box and release your mousethe tool will automatically use OpenCV to perfectly "shrink-wrap" the bounding box around the pollen grain (with an 8% padding to preserve blurry edges). You can also click " Snap Boxes to Edges" to run this on all boxes in an image.
-- **Visual Error Warnings:** Bounding boxes are color-coded in real-time.  **Green** means normal.  **Orange** warns you that boxes are overlapping (e.g. clumped pollen).  **Red** means a box is massively oversized.
-- **Box Opacity Slider:** Adjust the transparency of the bounding box borders to clearly see the edges of the pollen underneath.
-- **Export to JPG:** Use the  Export button to instantly save a flattened image of the current frame and its bounding boxes for reports.
-- **Auto-Box:** Double-click or press `Spacebar` to instantly place a default-sized box at your cursor (which also automatically snaps to edges!).
-- **Dataset Switcher:** Use the dropdown in the sidebar to switch between viewing your `Train`, `Validation`, and `Excluded` image sets.
-- **Move/Exclude:** Use the sidebar buttons to instantly move an image (and its label data) between the Train, Validation, or Excluded folders. Includes an overwrite safety warning. Excluded images are safely hidden and ignored during training.
+### 2. Validation Comparator (`scripts/compare_val.py`)
+Visually analyze exactly where your model is making mistakes.
+- **Side-by-Side Canvas:** Displays your human Ground Truth annotations (Green) directly next to the YOLO Model predictions (Red).
+- **Real-Time Inference:** Instantly runs your `best.pt` model dynamically when you switch images.
+- **Metrics Engine:** Click "Generate Excel Report" to automatically calculate True Positives (TP), False Positives (FP), False Negatives (FN), Precision, Recall, and F1-Score for every single image using IoU matching!
+
+### 3. Unified Inference Tool (`scripts/inference.py`)
+Run your model on thousands of new images.
+- **Count & Analyze:** Detects all pollen grains, draws bounding boxes, and generates a massive `pollen_counts.xlsx` spreadsheet.
+- **Auto-Annotate:** Feeds raw images through the model and generates YOLO `.txt` labels (using OpenCV to snap them perfectly) so you can pull them into `annotate.py` to fix mistakes and expand your training data.
 
 ---
 
@@ -91,36 +97,9 @@ python scripts/train.py --model yolo11n.pt --device 0 --epochs 100 --batch 20 --
 | `--batch` | 20 | Batch size (Lower if CUDA OutOfMemoryError occurs) |
 | `--imgsz` | 1024 | Input resolution|
 | `--device` | `0` | GPU device (`cpu` for CPU-only) |
-| `--kfolds` | 1 | Number of folds for K-fold cross-validation (Default: 1 for standard training, 5 for robust evaluation. Warning! the higher the value multiply to waiting time)
+| `--kfolds` | 1 | Number of folds for K-fold cross-validation (Default: 1 for standard training, 5 for robust evaluation. Warning! the higher the value multiply to waiting time) |
 
 *Note: The script automatically runs a Validation step using the best weights after training completes.*
-
----
-
-##  Unified Inference Tool (Count & Auto-Annotate)
-
-We have combined all inference logic into a single, easy-to-use GUI. 
-
-```bash
-python scripts/inference.py
-```
-
-The GUI offers two **Modes**:
-1. ** Count & Analyze:** 
-   - Detects all pollen grains.
-   - Generates random-colored bounding box dots for clear visibility of overlapping grains.
-   - Draws a semi-transparent text overlay with the total count in the center of the output image.
-   - Saves the annotated images and a comprehensive `pollen_counts.xlsx` report to the output folder.
-   - Unlocks a built-in Result Viewer to quickly flip through results (includes an individual  Save Image button for each slide).
-
-2. ** Auto-Annotate:** 
-   - Used for **Active Learning**.
-   - Feeds raw, unlabelled images through the model and saves YOLO `.txt` labels.
-   - **OpenCV Auto-Snapping:** Automatically utilizes Otsu's thresholding and Contour Detection to perfectly snap the predicted YOLO bounding box to the exact circular edge of the dark pollen grain (including an 8% padding to preserve delicate outer edges).
-   - Supports extremely dense slides by raising the `max_det` limit from YOLO's default of 300 to **5,000** objects per image.
-   - Copies the images into a `review` folder so you can open them in `scripts/annotate.py`, quickly delete orange overlapping boxes or red errors, and instantly add them to your dataset!
-
-*Both modes feature a real-time **Box Opacity** slider in the unified launch GUI so you can perfectly tune the thickness and transparency of drawn borders.*
 
 ---
 
@@ -133,7 +112,7 @@ Now that the foundational architecture, robust K-Fold training, and unified UI t
 2. **Auto-Annotate:** Run `scripts/inference.py` in **Auto-Annotate** mode on the raw folder.
 3. **Review & Correct:** Open `scripts/annotate.py`, point it to the output `review` folders, and rapidly fix any missed or falsely-detected grains.
 4. **Merge:** Move those corrected images/labels into your main `datasets/images` and `datasets/labels` folders.
-5. **Retrain:** Run `scripts/train_gui.py` to retrain the model on the newly expanded dataset.
+5. **Retrain:** Run `scripts/train.py` to retrain the model on the newly expanded dataset.
 
 *Once you reach **300-500 high-quality annotated images**, you will be able to upgrade the model to YOLO11 Medium (`yolo11m.pt`) and easily achieve 90%+ accuracy.*
 
@@ -160,6 +139,8 @@ PollenCounter-ObjectDetection-YOLO/
 │   ├── train_gui.py              # GUI Training launcher
 │   ├── train.py                  # CLI Training launcher
 │   ├── inference.py              # Unified Batch inference & Auto-Annotation
-│   └── annotate.py               # GUI Annotation Tool
+│   ├── annotate.py               # GUI Annotation Tool
+│   ├── compare_val.py            # GUI Validation visualizer & reporting
+│   ├── clean_all_duplicates.py   # Utility to purge overlapping bounding boxes
+│   └── clean_duplicate_points.py # Utility to purge duplicate dot annotations
 └── README.md
-```
