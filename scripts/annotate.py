@@ -57,12 +57,14 @@ PROGRESS_TODO = "#CCCCCC"
 class BoundingBox:
     """Represents a single YOLO-format bounding box."""
 
-    def __init__(self, x_center: float, y_center: float, w: float, h: float, class_id: int = 0):
+    def __init__(self, x_center: float, y_center: float, w: float, h: float, class_id: int = 0, is_auto: bool = False):
         self.x_center = x_center
         self.y_center = y_center
         self.w = w
         self.h = h
         self.class_id = class_id
+        self.is_auto = is_auto
+
 
     def to_yolo_line(self) -> str:
         return f"{self.class_id} {self.x_center:.6f} {self.y_center:.6f} {self.w:.6f} {self.h:.6f}"
@@ -165,6 +167,7 @@ class AnnotationApp:
         self.orig_h = 0
         self.pil_img: Optional[Image.Image] = None
         self.tk_image: Optional[ImageTk.PhotoImage] = None
+        self.yolo_model = None
         
         self._calculate_default_box_size()
 
@@ -357,6 +360,24 @@ class AnnotationApp:
         self.opacity_slider.bind("<ButtonRelease-1>", lambda e: self._redraw_boxes())
         self.opacity_slider.pack(fill=tk.X, padx=12)
 
+        # ── Sidebar: Auto-Recount ────────────────────────────────
+        tk.Label(
+            sidebar, text="Auto-Recount", font=("Segoe UI", 11, "bold"),
+            bg=SIDEBAR_BG, fg=ACCENT
+        ).pack(anchor=tk.W, padx=12, pady=(12, 2))
+
+        ar_frame = tk.Frame(sidebar, bg=SIDEBAR_BG)
+        ar_frame.pack(anchor=tk.W, padx=12, pady=(0, 4))
+        tk.Label(ar_frame, text="Conf:", font=("Consolas", 9), bg=SIDEBAR_BG, fg=TEXT_COLOR).pack(side=tk.LEFT)
+        self.conf_entry = tk.Entry(ar_frame, width=5, font=("Consolas", 10), bg="#FFFFFF", fg="black", insertbackground="black", bd=0)
+        self.conf_entry.insert(0, "0.15")
+        self.conf_entry.pack(side=tk.LEFT, padx=(2, 8))
+        
+        self.recount_btn = tk.Button(
+            ar_frame, text="🤖 Find Missing", bg="#8B5CF6", fg="white",
+            activebackground="#7C3AED", command=self._auto_recount, font=("Segoe UI", 9, "bold"), bd=0, cursor="hand2", padx=8, pady=2
+        )
+        self.recount_btn.pack(side=tk.LEFT)
 
         # ── Sidebar: instructions ───────────────────────────────────
         tk.Frame(sidebar, bg="#CCCCCC", height=1).pack(fill=tk.X, padx=12, pady=4)
@@ -806,6 +827,10 @@ class AnnotationApp:
                 box_colors.append((245, 158, 11))
                 box_color_strs.append("#F59E0B")
                 box_line_widths.append(3)
+            elif getattr(box, 'is_auto', False):
+                box_colors.append((139, 92, 246))
+                box_color_strs.append("#8B5CF6")
+                box_line_widths.append(3)
             else:
                 box_colors.append((0, 255, 136))
                 box_color_strs.append(BOX_COLOR)
@@ -996,6 +1021,89 @@ class AnnotationApp:
         self._redraw_boxes()
         self._save_labels()
         self.status.config(text=f" Snapped {updated} boxes to edges")
+
+    def _auto_recount(self):
+        """Lazy load YOLO, run inference, and add non-overlapping boxes."""
+        if not self.pil_img or not self.image_paths: return
+        
+        try:
+            conf_val = float(self.conf_entry.get())
+        except ValueError:
+            messagebox.showerror("Error", "Invalid confidence value")
+            return
+            
+        if self.yolo_model is None:
+            self.status.config(text=" Loading YOLO model...")
+            self.root.update()
+            try:
+                from ultralytics import YOLO
+                
+                # Automatically find the most recently updated best.pt model
+                model_path = None
+                detect_dir = PROJECT_ROOT / "runs" / "detect"
+                if detect_dir.exists():
+                    runs = sorted([d for d in detect_dir.iterdir() if d.is_dir()], key=lambda x: x.stat().st_mtime, reverse=True)
+                    for run in runs:
+                        p = run / "weights" / "best.pt"
+                        if p.exists():
+                            model_path = p
+                            break
+                
+                if model_path is None or not model_path.exists():
+                    messagebox.showerror("Error", "Could not find a trained best.pt model in runs/detect/!")
+                    self.status.config(text=" Model load failed")
+                    return
+                    
+                print(f"[INFO] Lazy-loading model from: {model_path}")
+                self.yolo_model = YOLO(model_path)
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to load YOLO: {e}")
+                self.status.config(text=" Model load failed")
+                return
+
+        self.status.config(text=f" Running inference at conf {conf_val}...")
+        self.root.update()
+        
+        img_path = str(self.image_paths[self.current_idx])
+        results = self.yolo_model.predict(
+            source=img_path,
+            conf=conf_val,
+            iou=0.45,
+            device="0", # Keep it on GPU for speed
+            verbose=False
+        )
+        
+        if not results: return
+        
+        boxes_data = results[0].boxes
+        if not boxes_data:
+            self.status.config(text=" No new boxes found by YOLO.")
+            return
+            
+        new_count = 0
+        
+        for box_data in boxes_data:
+            xywhn = box_data.xywhn[0].cpu().numpy()
+            xc, yc, w, h = xywhn
+            
+            new_box = BoundingBox(float(xc), float(yc), float(w), float(h), class_id=0, is_auto=True)
+            
+            # Filter: Check overlap against all existing boxes
+            is_overlap = False
+            for exist_box in self.boxes:
+                if exist_box.iou(new_box) > 0.25:
+                    is_overlap = True
+                    break
+                    
+            if not is_overlap:
+                self._snap_single_box(new_box)
+                self.boxes.append(new_box)
+                new_count += 1
+                
+        self._redraw_boxes()
+        self._save_labels()
+        self._update_ui()
+        self.status.config(text=f" Auto-recount: Added {new_count} missing pollen grains.")
 
     def _clean_duplicates(self):
         """Remove boxes that overlap by more than 80% with another box."""
