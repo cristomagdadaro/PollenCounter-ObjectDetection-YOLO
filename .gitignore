@@ -2,3 +2,6 @@
 .venv/Scripts/*
 Pollen-Counter-V1/*
 config/inference_settings.json
+runs/detect/train_192T_14V_YOLO11n_AS_Hans_N/args.yaml
+runs/detect/train_192T_14V_YOLO11n_AS_Hans_N/weights/best.pt
+runs/detect/train_192T_14V_YOLO11n_AS_Hans_N/weights/last.pt
