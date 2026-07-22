@@ -1087,6 +1087,8 @@ class AnnotationApp:
             source=img_path,
             conf=conf_val,
             iou=0.45,
+            imgsz=1024,
+            max_det=5000,
             device="0", # Keep it on GPU for speed
             verbose=False
         )
