@@ -180,7 +180,7 @@ def _run_standard_training(args, data_path):
         name=args.name,
         exist_ok=True,
         optimizer="AdamW",          # Better for smaller datasets than default SGD. Uses weight decay to prevent overfitting.
-        patience=50,                # Early stopping: Halts training if accuracy doesn't improve for 50 epochs.
+        patience=30,                # Early stopping: Halts training if accuracy doesn't improve for 30 epochs.
         dropout=0.15,               # Drops 15% of neurons randomly to force the model to learn multiple pollen features, preventing memorization.
         degrees=180.0,              # Rotates images randomly up to 180 degrees (pollen orientation doesn't matter).
         fliplr=0.5,                 # 50% chance to flip horizontally.
@@ -194,9 +194,9 @@ def _run_standard_training(args, data_path):
         mixup=0.1,                  # 10% chance to blend two images together (makes the model robust to blurry/clumped pollen).
         copy_paste=0.0,             # Disabled (not needed).
         close_mosaic=0,             # Doesn't disable mosaic at the end of training.
-        workers=0,                  # Prevents multithreading crashes on Windows.
-        max_det=2000,               # Allows YOLO to detect up to 2000 pollen grains per image (default is 300).
-        multi_scale=True,           # Randomly resizes the image resolution by +/- 50% during training (robustness to size).
+        workers=4,                  # Prevents multithreading crashes on Windows.
+        max_det=1500,               # Allows YOLO to detect up to 1500 pollen grains per image (default is 300).
+        multi_scale=False,           # Randomly resizes the image resolution by +/- 50% during training (robustness to size).
         label_smoothing=0.1,        # Targets 90% confidence instead of 100%, preventing arrogant overfitting on blurry images.
         box=0.05                    # Lowers priority of perfect box tightness, allowing the model to focus on simply detecting the pollen.
     )
