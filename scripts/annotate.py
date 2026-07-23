@@ -172,7 +172,10 @@ class AnnotationApp:
 
         # ── Build UI ────────────────────────────────────────────────
         self._build_ui()
+        self._load_settings()
         self._load_image()
+        
+        self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
     # ════════════════════════════════════════════════════════════════
     #  UI CONSTRUCTION
@@ -184,7 +187,7 @@ class AnnotationApp:
         self.root.minsize(1100, 700)
 
         # ── Top bar ─────────────────────────────────────────────────
-        top = tk.Frame(self.root, bg=ACCENT, height=48)
+        top = tk.Frame(self.root, bg=ACCENT, height=60)
         top.pack(fill=tk.X)
         top.pack_propagate(False)
 
@@ -192,6 +195,83 @@ class AnnotationApp:
             top, text="  Pollen Grain Annotator", font=("Segoe UI", 14, "bold"),
             bg=ACCENT, fg="white"
         ).pack(side=tk.LEFT, padx=16)
+
+        # ── Header Controls ──────────────────────────────────────────
+        header_controls = tk.Frame(top, bg=ACCENT)
+        header_controls.pack(side=tk.LEFT, padx=40, fill=tk.Y, pady=6)
+        
+        # 1. Auto-Box Size
+        box_size_frame = tk.Frame(header_controls, bg=ACCENT)
+        box_size_frame.pack(side=tk.LEFT, padx=10)
+        tk.Label(box_size_frame, text="Default Box W:", font=("Consolas", 9), bg=ACCENT, fg="white").pack(side=tk.LEFT)
+        self.entry_w = tk.Entry(box_size_frame, width=8, font=("Consolas", 10), bg="#FFFFFF", fg="black", insertbackground="black", bd=0)
+        self.entry_w.pack(side=tk.LEFT, padx=2)
+        tk.Label(box_size_frame, text="H:", font=("Consolas", 9), bg=ACCENT, fg="white").pack(side=tk.LEFT)
+        self.entry_h = tk.Entry(box_size_frame, width=8, font=("Consolas", 10), bg="#FFFFFF", fg="black", insertbackground="black", bd=0)
+        self.entry_h.pack(side=tk.LEFT, padx=2)
+        
+        self.entry_w.bind("<KeyRelease>", self._update_auto_size)
+        self.entry_h.bind("<KeyRelease>", self._update_auto_size)
+        self.entry_w.bind("<Return>", lambda e: self.canvas.focus_set())
+        self.entry_h.bind("<Return>", lambda e: self.canvas.focus_set())
+        self.entry_w.bind("<Escape>", lambda e: self.canvas.focus_set())
+        self.entry_h.bind("<Escape>", lambda e: self.canvas.focus_set())
+
+        # 2. Box Scale
+        tk.Label(header_controls, text="Scale:", font=("Segoe UI", 9, "bold"), bg=ACCENT, fg="white").pack(side=tk.LEFT, padx=(10, 2))
+        self.scale_var = tk.DoubleVar(value=1.0)
+        self.scale_slider = tk.Scale(
+            header_controls, from_=0.5, to=2.0, resolution=0.05, orient=tk.HORIZONTAL,
+            variable=self.scale_var, bg=ACCENT, fg="white", length=100,
+            activebackground=ACCENT, highlightthickness=0, bd=0
+        )
+        self.scale_slider.pack(side=tk.LEFT, padx=2)
+        
+        def on_scale_press(event):
+            import copy
+            self.base_boxes = copy.deepcopy(self.boxes)
+        def on_scale_drag(val):
+            if not hasattr(self, 'base_boxes'): return
+            scale_factor = float(val)
+            import copy
+            self.boxes = copy.deepcopy(self.base_boxes)
+            for box in self.boxes:
+                box.w *= scale_factor
+                box.h *= scale_factor
+            self._redraw_boxes()
+        def on_scale_release(event):
+            if not hasattr(self, 'base_boxes'): return
+            self._save_labels()
+            del self.base_boxes
+            self.scale_slider.config(command="")
+            self.scale_var.set(1.0)
+            self.scale_slider.config(command=on_scale_drag)
+
+        self.scale_slider.bind("<ButtonPress-1>", on_scale_press)
+        self.scale_slider.config(command=on_scale_drag)
+        self.scale_slider.bind("<ButtonRelease-1>", on_scale_release)
+
+        # 3. Box Opacity
+        tk.Label(header_controls, text="Opacity:", font=("Segoe UI", 9, "bold"), bg=ACCENT, fg="white").pack(side=tk.LEFT, padx=(10, 2))
+        self.opacity_var = tk.DoubleVar(value=0.2)
+        self.opacity_slider = tk.Scale(
+            header_controls, from_=0.0, to=1.0, resolution=0.1, orient=tk.HORIZONTAL,
+            variable=self.opacity_var, bg=ACCENT, fg="white", length=100,
+            activebackground=ACCENT, highlightthickness=0, bd=0
+        )
+        self.opacity_slider.bind("<ButtonRelease-1>", lambda e: self._redraw_boxes())
+        self.opacity_slider.pack(side=tk.LEFT, padx=2)
+        
+        # 4. Border Thickness
+        tk.Label(header_controls, text="Thickness:", font=("Segoe UI", 9, "bold"), bg=ACCENT, fg="white").pack(side=tk.LEFT, padx=(10, 2))
+        self.thickness_var = tk.IntVar(value=3)
+        self.thickness_slider = tk.Scale(
+            header_controls, from_=1, to=10, resolution=1, orient=tk.HORIZONTAL,
+            variable=self.thickness_var, bg=ACCENT, fg="white", length=80,
+            activebackground=ACCENT, highlightthickness=0, bd=0
+        )
+        self.thickness_slider.bind("<ButtonRelease-1>", lambda e: self._redraw_boxes())
+        self.thickness_slider.pack(side=tk.LEFT, padx=2)
 
         self.progress_label = tk.Label(
             top, text="", font=("Segoe UI", 11), bg=ACCENT, fg="#FFFFFF"
@@ -278,102 +358,23 @@ class AnnotationApp:
         if not hasattr(self, 'compare_labels_dir') or not self.compare_labels_dir:
             self.chk_compare.config(state=tk.DISABLED)
 
-        # ── Sidebar: auto box size ──────────────────────────────────
-        tk.Frame(sidebar, bg="#CCCCCC", height=1).pack(fill=tk.X, padx=12, pady=4)
+
+
+        # ── Sidebar: Recount by Ai ────────────────────────────────
         tk.Label(
-            sidebar, text="Auto-Box Size (px)", font=("Segoe UI", 11, "bold"),
-            bg=SIDEBAR_BG, fg=ACCENT
-        ).pack(anchor=tk.W, padx=12, pady=(4, 2))
-
-        size_frame = tk.Frame(sidebar, bg=SIDEBAR_BG)
-        size_frame.pack(anchor=tk.W, padx=12, pady=(0, 4))
-
-        tk.Label(size_frame, text="W:", font=("Consolas", 9), bg=SIDEBAR_BG, fg=TEXT_COLOR).pack(side=tk.LEFT)
-        self.entry_w = tk.Entry(size_frame, width=5, font=("Consolas", 10), bg="#FFFFFF", fg="white", insertbackground="black", bd=0)
-        self.entry_w.pack(side=tk.LEFT, padx=(2, 8))
-
-        tk.Label(size_frame, text="H:", font=("Consolas", 9), bg=SIDEBAR_BG, fg=TEXT_COLOR).pack(side=tk.LEFT)
-        self.entry_h = tk.Entry(size_frame, width=5, font=("Consolas", 10), bg="#FFFFFF", fg="white", insertbackground="black", bd=0)
-        self.entry_h.pack(side=tk.LEFT, padx=(2, 0))
-        self.entry_w.bind("<KeyRelease>", self._update_auto_size)
-        self.entry_h.bind("<KeyRelease>", self._update_auto_size)
-        
-        # Remove focus on Enter or Escape
-        self.entry_w.bind("<Return>", lambda e: self.canvas.focus_set())
-        self.entry_h.bind("<Return>", lambda e: self.canvas.focus_set())
-        self.entry_w.bind("<Escape>", lambda e: self.canvas.focus_set())
-        self.entry_h.bind("<Escape>", lambda e: self.canvas.focus_set())
-
-        # ── Sidebar: scale all boxes ────────────────────────────────
-        tk.Label(
-            sidebar, text="Scale All Boxes", font=("Segoe UI", 11, "bold"),
-            bg=SIDEBAR_BG, fg=ACCENT
-        ).pack(anchor=tk.W, padx=12, pady=(12, 2))
-
-        self.scale_var = tk.DoubleVar(value=1.0)
-        self.scale_slider = tk.Scale(
-            sidebar, from_=0.5, to=2.0, resolution=0.05, orient=tk.HORIZONTAL,
-            variable=self.scale_var, bg=SIDEBAR_BG, fg=TEXT_COLOR, 
-            activebackground=ACCENT, highlightthickness=0, bd=0
-        )
-        self.scale_slider.pack(fill=tk.X, padx=12)
-
-        def on_scale_press(event):
-            import copy
-            self.base_boxes = copy.deepcopy(self.boxes)
-
-        def on_scale_drag(val):
-            if not hasattr(self, 'base_boxes'): return
-            scale_factor = float(val)
-            import copy
-            self.boxes = copy.deepcopy(self.base_boxes)
-            for box in self.boxes:
-                box.w *= scale_factor
-                box.h *= scale_factor
-            self._redraw_boxes()
-
-        def on_scale_release(event):
-            if not hasattr(self, 'base_boxes'): return
-            self._save_labels()
-            del self.base_boxes
-            self.scale_slider.config(command="")
-            self.scale_var.set(1.0)
-            self.scale_slider.config(command=on_scale_drag)
-
-        self.scale_slider.bind("<ButtonPress-1>", on_scale_press)
-        self.scale_slider.config(command=on_scale_drag)
-        self.scale_slider.bind("<ButtonRelease-1>", on_scale_release)
-
-        # ── Sidebar: box opacity ────────────────────────────────
-        tk.Label(
-            sidebar, text="Box Opacity", font=("Segoe UI", 11, "bold"),
-            bg=SIDEBAR_BG, fg=ACCENT
-        ).pack(anchor=tk.W, padx=12, pady=(12, 2))
-
-        self.opacity_var = tk.DoubleVar(value=0.2)
-        self.opacity_slider = tk.Scale(
-            sidebar, from_=0.0, to=1.0, resolution=0.1, orient=tk.HORIZONTAL,
-            variable=self.opacity_var, bg=SIDEBAR_BG, fg=TEXT_COLOR, 
-            activebackground=ACCENT, highlightthickness=0, bd=0
-        )
-        self.opacity_slider.bind("<ButtonRelease-1>", lambda e: self._redraw_boxes())
-        self.opacity_slider.pack(fill=tk.X, padx=12)
-
-        # ── Sidebar: Auto-Recount ────────────────────────────────
-        tk.Label(
-            sidebar, text="Auto-Recount", font=("Segoe UI", 11, "bold"),
+            sidebar, text="Recount by Ai", font=("Segoe UI", 11, "bold"),
             bg=SIDEBAR_BG, fg=ACCENT
         ).pack(anchor=tk.W, padx=12, pady=(12, 2))
 
         ar_frame = tk.Frame(sidebar, bg=SIDEBAR_BG)
         ar_frame.pack(anchor=tk.W, padx=12, pady=(0, 4))
-        tk.Label(ar_frame, text="Conf:", font=("Consolas", 9), bg=SIDEBAR_BG, fg=TEXT_COLOR).pack(side=tk.LEFT)
+        tk.Label(ar_frame, text="Threshold:", font=("Consolas", 9), bg=SIDEBAR_BG, fg=TEXT_COLOR).pack(side=tk.LEFT)
         self.conf_entry = tk.Entry(ar_frame, width=5, font=("Consolas", 10), bg="#FFFFFF", fg="black", insertbackground="black", bd=0)
         self.conf_entry.insert(0, "0.15")
         self.conf_entry.pack(side=tk.LEFT, padx=(2, 8))
         
         self.recount_btn = tk.Button(
-            ar_frame, text="🤖 Find Missing", bg="#8B5CF6", fg="white",
+            ar_frame, text="Find Missing", bg="#8B5CF6", fg="white",
             activebackground="#7C3AED", command=self._auto_recount, font=("Segoe UI", 9, "bold"), bd=0, cursor="hand2", padx=8, pady=2
         )
         self.recount_btn.pack(side=tk.LEFT)
@@ -836,19 +837,12 @@ class AnnotationApp:
             if is_overlap:
                 box_colors.append((245, 158, 11))
                 box_color_strs.append("#F59E0B")
-                box_line_widths.append(3)
             elif getattr(box, 'is_auto', False):
                 box_colors.append((139, 92, 246))
                 box_color_strs.append("#8B5CF6")
-                box_line_widths.append(3)
-            elif getattr(box, 'is_auto', False):
-                box_colors.append((139, 92, 246))
-                box_color_strs.append("#8B5CF6")
-                box_line_widths.append(3)
             else:
                 box_colors.append((0, 255, 136))
                 box_color_strs.append(BOX_COLOR)
-                box_line_widths.append(2)
 
         # Draw comparison boxes if enabled
         if hasattr(self, 'compare_labels_dir') and self.compare_labels_dir and self.show_compare.get():
@@ -875,7 +869,9 @@ class AnnotationApp:
             overlay_pil = Image.new("RGBA", (disp_w, disp_h), (0,0,0,0))
             draw = ImageDraw.Draw(overlay_pil, "RGBA")
 
-            for box in self.boxes:
+            base_width = getattr(self, 'thickness_var', tk.IntVar(value=3)).get()
+            
+            for i, box in enumerate(self.boxes):
                 x1_n = box.x_center - box.w / 2
                 y1_n = box.y_center - box.h / 2
                 x2_n = box.x_center + box.w / 2
@@ -890,7 +886,11 @@ class AnnotationApp:
                 ly2 = cy2 - self.img_offset_y
                 
                 color = box_colors[i]
-                outline_w = box_line_widths[i]
+                
+                # Make massive/overlap boxes slightly thicker so they stand out
+                is_massive = box.w > 0.5 or box.h > 0.5
+                outline_w = base_width + 1 if is_massive else base_width
+                
                 draw.rectangle([lx1, ly1, lx2, ly2], outline=(*color, opacity), width=outline_w)
 
             self.overlay_tk = ImageTk.PhotoImage(overlay_pil)
@@ -927,7 +927,25 @@ class AnnotationApp:
             return
             
         path = self.image_paths[self.current_idx]
-        out_dir = PROJECT_ROOT / "output" / "annotated_images"
+        
+        from tkinter import filedialog
+        initial_file = f"annotated_{path.name}"
+        if not initial_file.lower().endswith(".jpg"):
+            initial_file = str(Path(initial_file).with_suffix(".jpg"))
+            
+        out_path_str = filedialog.asksaveasfilename(
+            parent=self.root,
+            title="Export Annotated Image",
+            initialfile=initial_file,
+            defaultextension=".jpg",
+            filetypes=[("JPEG Image", "*.jpg"), ("All Files", "*.*")]
+        )
+        
+        if not out_path_str:
+            return
+            
+        out_path = Path(out_path_str)
+        out_dir = out_path.parent
         out_dir.mkdir(parents=True, exist_ok=True)
         
         export_img = self.pil_img.copy().convert("RGBA")
@@ -968,7 +986,10 @@ class AnnotationApp:
             else:
                 color = (0, 255, 136)
             
-            draw.rectangle([x1, y1, x2, y2], outline=(*color, opacity), width=3)
+            base_width = getattr(self, 'thickness_var', tk.IntVar(value=3)).get()
+            outline_w = base_width + 1 if is_massive else base_width
+            
+            draw.rectangle([x1, y1, x2, y2], outline=(*color, opacity), width=outline_w)
             # optional text
             draw.text((x1 + 3, y1 - 15), f"#{i+1}", fill=(*color, 255))
             
@@ -1246,7 +1267,7 @@ class AnnotationApp:
             self._redraw_boxes()
             self._save_labels()
             self._update_ui()
-            self.status.config(text=f"↩ Undo  boxes: {len(self.boxes)}")
+            self.status.config(text=f"Undo boxes: {len(self.boxes)}")
 
     def _clear_boxes(self):
         if self.boxes:
@@ -1328,7 +1349,7 @@ class AnnotationApp:
                 self.current_idx = len(self.image_paths) - 1
 
             self._load_image()
-            self.status.config(text=f"📦 '{name}' moved to {target_set}")
+            self.status.config(text=f"'{name}' moved to {target_set}")
 
     # ════════════════════════════════════════════════════════════════
     #  UI UPDATES
@@ -1380,6 +1401,66 @@ class AnnotationApp:
             self.move_train_btn.config(state=tk.DISABLED if self.current_set == "Train" else tk.NORMAL)
             self.move_val_btn.config(state=tk.DISABLED if self.current_set == "Validation" else tk.NORMAL)
             self.exclude_btn.config(state=tk.DISABLED if self.current_set == "Excluded" else tk.NORMAL)
+
+    # ════════════════════════════════════════════════════════════════
+    #  STATE PERSISTENCE
+    # ════════════════════════════════════════════════════════════════
+
+    def _load_settings(self):
+        settings_path = PROJECT_ROOT / "config" / "inference_settings.json"
+        if not settings_path.exists(): return
+        try:
+            import json
+            with open(settings_path, 'r') as f:
+                config = json.load(f)
+                
+            if "model" in config and hasattr(self, 'model_combo'):
+                if config["model"] in self.model_combo['values']:
+                    self.model_combo.set(config["model"])
+            if "threshold" in config and hasattr(self, 'conf_entry'):
+                self.conf_entry.delete(0, tk.END)
+                self.conf_entry.insert(0, str(config["threshold"]))
+            if "opacity" in config and hasattr(self, 'opacity_var'):
+                self.opacity_var.set(config["opacity"])
+            if "box_width" in config and hasattr(self, 'width_var'):
+                self.width_var.set(config["box_width"])
+            if "box_height" in config and hasattr(self, 'height_var'):
+                self.height_var.set(config["box_height"])
+        except Exception as e:
+            print(f"[WARNING] Failed to load UI settings: {e}")
+
+    def _save_settings(self):
+        settings_path = PROJECT_ROOT / "config" / "inference_settings.json"
+        settings_path.parent.mkdir(exist_ok=True)
+        try:
+            import json
+            config = {}
+            if settings_path.exists():
+                try:
+                    with open(settings_path, 'r') as f:
+                        config = json.load(f)
+                except json.JSONDecodeError:
+                    pass
+            
+            if hasattr(self, 'model_combo'):
+                config["model"] = self.model_combo.get()
+            if hasattr(self, 'conf_entry'):
+                config["threshold"] = self.conf_entry.get()
+            if hasattr(self, 'opacity_var'):
+                config["opacity"] = self.opacity_var.get()
+            if hasattr(self, 'width_var'):
+                config["box_width"] = self.width_var.get()
+            if hasattr(self, 'height_var'):
+                config["box_height"] = self.height_var.get()
+                
+            with open(settings_path, 'w') as f:
+                json.dump(config, f)
+        except Exception as e:
+            print(f"[WARNING] Failed to save UI settings: {e}")
+
+    def _on_close(self):
+        self._save_settings()
+        self.root.destroy()
 
 
 def parse_args() -> argparse.Namespace:
