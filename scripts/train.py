@@ -179,33 +179,21 @@ def _run_standard_training(args, data_path):
         project=args.project,
         name=args.name,
         exist_ok=True,
-        
-        # --- Advanced Hyperparameters for Small/Microscopy Datasets ---
-        
-        # 1. Optimizer Strategy
         optimizer="AdamW",          # Better for smaller datasets than default SGD. Uses weight decay to prevent overfitting.
         patience=50,                # Early stopping: Halts training if accuracy doesn't improve for 50 epochs.
         dropout=0.15,               # Drops 15% of neurons randomly to force the model to learn multiple pollen features, preventing memorization.
-        
-        # 2. Geometric Augmentation (Simulates different microscope angles & positions)
         degrees=180.0,              # Rotates images randomly up to 180 degrees (pollen orientation doesn't matter).
         fliplr=0.5,                 # 50% chance to flip horizontally.
         flipud=0.5,                 # 50% chance to flip vertically.
         scale=0.5,                  # Scales image by +/- 50% to simulate different zoom levels.
         translate=0.3,              # Shifts the image randomly by 30% to simulate moving the microscope slide.
-        
-        # 3. Color Augmentation (Simulates different lighting & staining)
         hsv_h=0.03,                 # Randomly shifts hue (color).
         hsv_s=0.4,                  # Randomly shifts saturation (intensity).
         hsv_v=0.4,                  # Randomly shifts value (brightness/exposure).
-        
-        # 4. Complex Augmentation
         mosaic=1.0,                 # 100% chance to stitch 4 training images together (gives rich context).
         mixup=0.1,                  # 10% chance to blend two images together (makes the model robust to blurry/clumped pollen).
         copy_paste=0.0,             # Disabled (not needed).
         close_mosaic=0,             # Doesn't disable mosaic at the end of training.
-        
-        # 5. Technical Limits & Modifiers
         workers=0,                  # Prevents multithreading crashes on Windows.
         max_det=2000,               # Allows YOLO to detect up to 2000 pollen grains per image (default is 300).
         multi_scale=True,           # Randomly resizes the image resolution by +/- 50% during training (robustness to size).
