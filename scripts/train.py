@@ -53,7 +53,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--epochs",
         type=int,
-        default=150,
+        default=100,
         help="Total training epochs.",
     )
     parser.add_argument(
@@ -183,16 +183,16 @@ def _run_standard_training(args, data_path):
         degrees=180.0,
         fliplr=0.5,
         flipud=0.5,
-        scale=0.2,
-        translate=0.1,
+        scale=0.5,
+        translate=0.3,
         mosaic=1.0,
-        hsv_h=0.015,
-        hsv_s=0.2,
-        hsv_v=0.2,
+        hsv_h=0.03,
+        hsv_s=0.4,
+        hsv_v=0.4,
         mixup=0.1,
         copy_paste=0.0,
         workers=0,
-        max_det=1000,
+        max_det=2000,
         close_mosaic=0,
         multi_scale=True,
     )

@@ -58,11 +58,13 @@ class BoundingBox:
     """Represents a single YOLO-format bounding box."""
 
     def __init__(self, x_center: float, y_center: float, w: float, h: float, class_id: int = 0, is_auto: bool = False):
+    def __init__(self, x_center: float, y_center: float, w: float, h: float, class_id: int = 0, is_auto: bool = False):
         self.x_center = x_center
         self.y_center = y_center
         self.w = w
         self.h = h
         self.class_id = class_id
+        self.is_auto = is_auto
         self.is_auto = is_auto
 
     def to_yolo_line(self) -> str:
@@ -166,6 +168,7 @@ class AnnotationApp:
         self.orig_h = 0
         self.pil_img: Optional[Image.Image] = None
         self.tk_image: Optional[ImageTk.PhotoImage] = None
+        self.yolo_model = None
         self.yolo_model = None
         
         self._calculate_default_box_size()
@@ -358,6 +361,31 @@ class AnnotationApp:
         )
         self.opacity_slider.bind("<ButtonRelease-1>", lambda e: self._redraw_boxes())
         self.opacity_slider.pack(fill=tk.X, padx=12)
+
+        # ── Sidebar: Auto-Recount ────────────────────────────────
+        tk.Label(
+            sidebar, text="Auto-Recount", font=("Segoe UI", 11, "bold"),
+            bg=SIDEBAR_BG, fg=ACCENT
+        ).pack(anchor=tk.W, padx=12, pady=(12, 2))
+
+        ar_frame = tk.Frame(sidebar, bg=SIDEBAR_BG)
+        ar_frame.pack(anchor=tk.W, padx=12, pady=(0, 4))
+        tk.Label(ar_frame, text="Conf:", font=("Consolas", 9), bg=SIDEBAR_BG, fg=TEXT_COLOR).pack(side=tk.LEFT)
+        self.conf_entry = tk.Entry(ar_frame, width=5, font=("Consolas", 10), bg="#FFFFFF", fg="black", insertbackground="black", bd=0)
+        self.conf_entry.insert(0, "0.15")
+        self.conf_entry.pack(side=tk.LEFT, padx=(2, 8))
+        
+        self.recount_btn = tk.Button(
+            ar_frame, text="🤖 Find Missing", bg="#8B5CF6", fg="white",
+            activebackground="#7C3AED", command=self._auto_recount, font=("Segoe UI", 9, "bold"), bd=0, cursor="hand2", padx=8, pady=2
+        )
+        self.recount_btn.pack(side=tk.LEFT)
+
+        self.discard_recount_btn = tk.Button(
+            ar_frame, text="✖", bg="#EF4444", fg="white",
+            activebackground="#DC2626", command=self._discard_recount, font=("Segoe UI", 9, "bold"), bd=0, cursor="hand2", padx=6, pady=2
+        )
+        self.discard_recount_btn.pack(side=tk.LEFT, padx=(4, 0))
 
         # ── Sidebar: Auto-Recount ────────────────────────────────
         tk.Label(
@@ -832,6 +860,10 @@ class AnnotationApp:
             if is_overlap:
                 box_colors.append((245, 158, 11))
                 box_color_strs.append("#F59E0B")
+                box_line_widths.append(3)
+            elif getattr(box, 'is_auto', False):
+                box_colors.append((139, 92, 246))
+                box_color_strs.append("#8B5CF6")
                 box_line_widths.append(3)
             elif getattr(box, 'is_auto', False):
                 box_colors.append((139, 92, 246))
