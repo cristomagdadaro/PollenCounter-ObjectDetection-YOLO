@@ -1422,10 +1422,18 @@ class AnnotationApp:
                 self.conf_entry.insert(0, str(config["threshold"]))
             if "opacity" in config and hasattr(self, 'opacity_var'):
                 self.opacity_var.set(config["opacity"])
-            if "box_width" in config and hasattr(self, 'width_var'):
-                self.width_var.set(config["box_width"])
-            if "box_height" in config and hasattr(self, 'height_var'):
-                self.height_var.set(config["box_height"])
+            if "box_width" in config and hasattr(self, 'entry_w'):
+                self.entry_w.delete(0, tk.END)
+                self.entry_w.insert(0, str(config["box_width"]))
+            if "box_height" in config and hasattr(self, 'entry_h'):
+                self.entry_h.delete(0, tk.END)
+                self.entry_h.insert(0, str(config["box_height"]))
+            if "thickness" in config and hasattr(self, 'thickness_var'):
+                self.thickness_var.set(config["thickness"])
+            if "scale" in config and hasattr(self, 'scale_var'):
+                self.scale_var.set(config["scale"])
+            if "show_compare" in config and hasattr(self, 'show_compare'):
+                self.show_compare.set(config["show_compare"])
         except Exception as e:
             print(f"[WARNING] Failed to load UI settings: {e}")
 
@@ -1448,10 +1456,16 @@ class AnnotationApp:
                 config["threshold"] = self.conf_entry.get()
             if hasattr(self, 'opacity_var'):
                 config["opacity"] = self.opacity_var.get()
-            if hasattr(self, 'width_var'):
-                config["box_width"] = self.width_var.get()
-            if hasattr(self, 'height_var'):
-                config["box_height"] = self.height_var.get()
+            if hasattr(self, 'entry_w'):
+                config["box_width"] = self.entry_w.get()
+            if hasattr(self, 'entry_h'):
+                config["box_height"] = self.entry_h.get()
+            if hasattr(self, 'thickness_var'):
+                config["thickness"] = self.thickness_var.get()
+            if hasattr(self, 'scale_var'):
+                config["scale"] = self.scale_var.get()
+            if hasattr(self, 'show_compare'):
+                config["show_compare"] = self.show_compare.get()
                 
             with open(settings_path, 'w') as f:
                 json.dump(config, f)
