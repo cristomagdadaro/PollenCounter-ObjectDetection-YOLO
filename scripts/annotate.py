@@ -219,59 +219,74 @@ class AnnotationApp:
 
         # 2. Box Scale
         tk.Label(header_controls, text="Scale:", font=("Segoe UI", 9, "bold"), bg=ACCENT, fg="white").pack(side=tk.LEFT, padx=(10, 2))
-        self.scale_var = tk.DoubleVar(value=1.0)
-        self.scale_slider = tk.Scale(
-            header_controls, from_=0.5, to=2.0, resolution=0.05, orient=tk.HORIZONTAL,
-            variable=self.scale_var, bg=ACCENT, fg="white", length=100,
-            activebackground=ACCENT, highlightthickness=0, bd=0
+        self.scale_var = tk.StringVar(value="1.0")
+        self.scale_entry = tk.Entry(
+            header_controls, textvariable=self.scale_var, width=5, font=("Consolas", 10),
+            bg="#FFFFFF", fg="black", insertbackground="black", bd=0
         )
-        self.scale_slider.pack(side=tk.LEFT, padx=2)
+        self.scale_entry.pack(side=tk.LEFT, padx=2)
         
-        def on_scale_press(event):
-            import copy
-            self.base_boxes = copy.deepcopy(self.boxes)
-        def on_scale_drag(val):
-            if not hasattr(self, 'base_boxes'): return
-            scale_factor = float(val)
-            import copy
-            self.boxes = copy.deepcopy(self.base_boxes)
-            for box in self.boxes:
-                box.w *= scale_factor
-                box.h *= scale_factor
-            self._redraw_boxes()
-        def on_scale_release(event):
-            if not hasattr(self, 'base_boxes'): return
-            self._save_labels()
-            del self.base_boxes
-            self.scale_slider.config(command="")
-            self.scale_var.set(1.0)
-            self.scale_slider.config(command=on_scale_drag)
+        def apply_scale(event):
+            try:
+                # Safely parse float, replacing comma with dot for European locales
+                val_str = self.scale_var.get().replace(',', '.')
+                scale_factor = float(val_str)
+                if scale_factor <= 0 or scale_factor == 1.0: return
+                for box in self.boxes:
+                    box.w *= scale_factor
+                    box.h *= scale_factor
+                self._redraw_boxes()
+                self._save_labels()
+                self.scale_var.set("1.0")
+                self.canvas.focus_set()
+            except Exception:
+                pass
 
-        self.scale_slider.bind("<ButtonPress-1>", on_scale_press)
-        self.scale_slider.config(command=on_scale_drag)
-        self.scale_slider.bind("<ButtonRelease-1>", on_scale_release)
+        self.scale_entry.bind("<Return>", apply_scale)
+        self.scale_entry.bind("<Escape>", lambda e: self.canvas.focus_set())
 
         # 3. Box Opacity
         tk.Label(header_controls, text="Opacity:", font=("Segoe UI", 9, "bold"), bg=ACCENT, fg="white").pack(side=tk.LEFT, padx=(10, 2))
-        self.opacity_var = tk.DoubleVar(value=0.2)
-        self.opacity_slider = tk.Scale(
-            header_controls, from_=0.0, to=1.0, resolution=0.1, orient=tk.HORIZONTAL,
-            variable=self.opacity_var, bg=ACCENT, fg="white", length=100,
-            activebackground=ACCENT, highlightthickness=0, bd=0
+        self.opacity_var = tk.StringVar(value="0.2")
+        self.opacity_entry = tk.Entry(
+            header_controls, textvariable=self.opacity_var, width=5, font=("Consolas", 10),
+            bg="#FFFFFF", fg="black", insertbackground="black", bd=0
         )
-        self.opacity_slider.bind("<ButtonRelease-1>", lambda e: self._redraw_boxes())
-        self.opacity_slider.pack(side=tk.LEFT, padx=2)
+        self.opacity_entry.pack(side=tk.LEFT, padx=2)
+        
+        def update_opacity(*args):
+            try:
+                val_str = self.opacity_var.get().replace(',', '.')
+                val = float(val_str)
+                if 0.0 <= val <= 1.0:
+                    self._redraw_boxes()
+            except Exception:
+                pass
+                
+        self.opacity_var.trace_add("write", update_opacity)
+        self.opacity_entry.bind("<Return>", lambda e: self.canvas.focus_set())
+        self.opacity_entry.bind("<Escape>", lambda e: self.canvas.focus_set())
         
         # 4. Border Thickness
         tk.Label(header_controls, text="Thickness:", font=("Segoe UI", 9, "bold"), bg=ACCENT, fg="white").pack(side=tk.LEFT, padx=(10, 2))
-        self.thickness_var = tk.IntVar(value=3)
-        self.thickness_slider = tk.Scale(
-            header_controls, from_=1, to=10, resolution=1, orient=tk.HORIZONTAL,
-            variable=self.thickness_var, bg=ACCENT, fg="white", length=80,
-            activebackground=ACCENT, highlightthickness=0, bd=0
+        self.thickness_var = tk.StringVar(value="3")
+        self.thickness_entry = tk.Entry(
+            header_controls, textvariable=self.thickness_var, width=5, font=("Consolas", 10),
+            bg="#FFFFFF", fg="black", insertbackground="black", bd=0
         )
-        self.thickness_slider.bind("<ButtonRelease-1>", lambda e: self._redraw_boxes())
-        self.thickness_slider.pack(side=tk.LEFT, padx=2)
+        self.thickness_entry.pack(side=tk.LEFT, padx=2)
+        
+        def update_thickness(*args):
+            try:
+                val = int(self.thickness_var.get())
+                if val >= 1:
+                    self._redraw_boxes()
+            except Exception:
+                pass
+                
+        self.thickness_var.trace_add("write", update_thickness)
+        self.thickness_entry.bind("<Return>", lambda e: self.canvas.focus_set())
+        self.thickness_entry.bind("<Escape>", lambda e: self.canvas.focus_set())
 
         self.progress_label = tk.Label(
             top, text="", font=("Segoe UI", 11), bg=ACCENT, fg="#FFFFFF"
@@ -862,14 +877,20 @@ class AnnotationApp:
                 self.canvas_ids.append(rect_id)
 
         # Draw primary editable boxes
-        opacity = int(self.opacity_var.get() * 255)
+        try:
+            opacity = int(float(self.opacity_var.get().replace(',', '.')) * 255)
+        except Exception:
+            opacity = 50
         if opacity > 0:
             disp_w = int(self.orig_w * self.display_scale)
             disp_h = int(self.orig_h * self.display_scale)
             overlay_pil = Image.new("RGBA", (disp_w, disp_h), (0,0,0,0))
             draw = ImageDraw.Draw(overlay_pil, "RGBA")
 
-            base_width = getattr(self, 'thickness_var', tk.IntVar(value=3)).get()
+            try:
+                base_width = int(self.thickness_var.get())
+            except Exception:
+                base_width = 3
             
             for i, box in enumerate(self.boxes):
                 x1_n = box.x_center - box.w / 2
@@ -986,7 +1007,10 @@ class AnnotationApp:
             else:
                 color = (0, 255, 136)
             
-            base_width = getattr(self, 'thickness_var', tk.IntVar(value=3)).get()
+            try:
+                base_width = int(self.thickness_var.get())
+            except Exception:
+                base_width = 3
             outline_w = base_width + 1 if is_massive else base_width
             
             draw.rectangle([x1, y1, x2, y2], outline=(*color, opacity), width=outline_w)
@@ -1429,9 +1453,9 @@ class AnnotationApp:
                 self.entry_h.delete(0, tk.END)
                 self.entry_h.insert(0, str(config["box_height"]))
             if "thickness" in config and hasattr(self, 'thickness_var'):
-                self.thickness_var.set(config["thickness"])
+                self.thickness_var.set(str(config["thickness"]))
             if "scale" in config and hasattr(self, 'scale_var'):
-                self.scale_var.set(config["scale"])
+                self.scale_var.set(str(config["scale"]))
             if "show_compare" in config and hasattr(self, 'show_compare'):
                 self.show_compare.set(config["show_compare"])
         except Exception as e:
@@ -1455,15 +1479,21 @@ class AnnotationApp:
             if hasattr(self, 'conf_entry'):
                 config["threshold"] = self.conf_entry.get()
             if hasattr(self, 'opacity_var'):
-                config["opacity"] = self.opacity_var.get()
+                try:
+                    config["opacity"] = float(self.opacity_var.get().replace(',', '.'))
+                except Exception: pass
             if hasattr(self, 'entry_w'):
                 config["box_width"] = self.entry_w.get()
             if hasattr(self, 'entry_h'):
                 config["box_height"] = self.entry_h.get()
             if hasattr(self, 'thickness_var'):
-                config["thickness"] = self.thickness_var.get()
+                try:
+                    config["thickness"] = int(self.thickness_var.get())
+                except Exception: pass
             if hasattr(self, 'scale_var'):
-                config["scale"] = self.scale_var.get()
+                try:
+                    config["scale"] = float(self.scale_var.get().replace(',', '.'))
+                except Exception: pass
             if hasattr(self, 'show_compare'):
                 config["show_compare"] = self.show_compare.get()
                 
