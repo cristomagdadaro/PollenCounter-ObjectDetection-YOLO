@@ -2,3 +2,5 @@
 .venv/Scripts/*
 Pollen-Counter-V1/*
 config/inference_settings.json
+output/raw/images/review/*
+output/raw/labels/review/*
