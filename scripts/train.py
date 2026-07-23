@@ -226,6 +226,37 @@ def _run_standard_training(args, data_path):
         print(f"  Final mAP50: {metrics.box.map50:.4f}")
     print("=" * 60)
 
+    # ── Post-Training Folder Renaming ──
+    try:
+        import os
+        
+        # Count images
+        train_count = sum(1 for _ in open(Path(data_path).parent / "train.txt")) if (Path(data_path).parent / "train.txt").exists() else 0
+        val_count = sum(1 for _ in open(Path(data_path).parent / "val.txt")) if (Path(data_path).parent / "val.txt").exists() else 0
+        
+        model_name = Path(args.model).stem.upper()
+        
+        if hasattr(metrics, 'box'):
+            p = int(metrics.box.mp * 100)
+            r = int(metrics.box.mr * 100)
+            map50 = int(metrics.box.map50 * 100)
+        else:
+            p, r, map50 = 0, 0, 0
+            
+        detect_dir = Path(args.project)
+        iteration = len([d for d in detect_dir.iterdir() if d.is_dir()])
+        
+        new_name = f"i{iteration}_{train_count}T_{val_count}V_{model_name}_{p}P_{r}R_{map50}A"
+        old_dir = detect_dir / args.name
+        new_dir = detect_dir / new_name
+        
+        if old_dir.exists():
+            os.rename(str(old_dir), str(new_dir))
+            print(f"\n[INFO] Renamed training folder to: {new_name}")
+            args.name = new_name  # Update so results.png opens correctly below
+    except Exception as e:
+        print(f"\n[WARNING] Could not automatically rename folder: {e}")
+
     # Automatically open the training visualization graphs
     results_png = Path(args.project) / args.name / "results.png"
     if results_png.exists():

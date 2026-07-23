@@ -58,15 +58,12 @@ class BoundingBox:
     """Represents a single YOLO-format bounding box."""
 
     def __init__(self, x_center: float, y_center: float, w: float, h: float, class_id: int = 0, is_auto: bool = False):
-    def __init__(self, x_center: float, y_center: float, w: float, h: float, class_id: int = 0, is_auto: bool = False):
         self.x_center = x_center
         self.y_center = y_center
         self.w = w
         self.h = h
         self.class_id = class_id
         self.is_auto = is_auto
-        self.is_auto = is_auto
-
     def to_yolo_line(self) -> str:
         return f"{self.class_id} {self.x_center:.6f} {self.y_center:.6f} {self.w:.6f} {self.h:.6f}"
 
@@ -169,7 +166,7 @@ class AnnotationApp:
         self.pil_img: Optional[Image.Image] = None
         self.tk_image: Optional[ImageTk.PhotoImage] = None
         self.yolo_model = None
-        self.yolo_model = None
+        self.loaded_model_name = None
         
         self._calculate_default_box_size()
 
@@ -387,55 +384,34 @@ class AnnotationApp:
         )
         self.discard_recount_btn.pack(side=tk.LEFT, padx=(4, 0))
 
-        # ── Sidebar: Auto-Recount ────────────────────────────────
-        tk.Label(
-            sidebar, text="Auto-Recount", font=("Segoe UI", 11, "bold"),
-            bg=SIDEBAR_BG, fg=ACCENT
-        ).pack(anchor=tk.W, padx=12, pady=(12, 2))
+        # Determine available models for dropdown
+        available_models = []
+        try:
+            detect_dir = PROJECT_ROOT / "runs" / "detect"
+            if detect_dir.exists():
+                runs = sorted([d for d in detect_dir.iterdir() if d.is_dir()], key=lambda x: x.stat().st_mtime, reverse=True)
+                for run in runs:
+                    if (run / "weights" / "best.pt").exists():
+                        available_models.append(run.name)
+        except Exception:
+            pass
+            
+        if not available_models:
+            available_models = ["None"]
 
-        ar_frame = tk.Frame(sidebar, bg=SIDEBAR_BG)
-        ar_frame.pack(anchor=tk.W, padx=12, pady=(0, 4))
-        tk.Label(ar_frame, text="Conf:", font=("Consolas", 9), bg=SIDEBAR_BG, fg=TEXT_COLOR).pack(side=tk.LEFT)
-        self.conf_entry = tk.Entry(ar_frame, width=5, font=("Consolas", 10), bg="#FFFFFF", fg="black", insertbackground="black", bd=0)
-        self.conf_entry.insert(0, "0.15")
-        self.conf_entry.pack(side=tk.LEFT, padx=(2, 8))
+        tk.Label(
+            sidebar, text="Model:", font=("Consolas", 8),
+            bg=SIDEBAR_BG, fg="#888888"
+        ).pack(anchor=tk.W, padx=12, pady=(4, 0))
         
-        self.recount_btn = tk.Button(
-            ar_frame, text="🤖 Find Missing", bg="#8B5CF6", fg="white",
-            activebackground="#7C3AED", command=self._auto_recount, font=("Segoe UI", 9, "bold"), bd=0, cursor="hand2", padx=8, pady=2
-        )
-        self.recount_btn.pack(side=tk.LEFT)
-
-        self.discard_recount_btn = tk.Button(
-            ar_frame, text="✖", bg="#EF4444", fg="white",
-            activebackground="#DC2626", command=self._discard_recount, font=("Segoe UI", 9, "bold"), bd=0, cursor="hand2", padx=6, pady=2
-        )
-        self.discard_recount_btn.pack(side=tk.LEFT, padx=(4, 0))
+        self.model_combo = ttk.Combobox(sidebar, values=available_models, state="readonly", width=30)
+        self.model_combo.set(available_models[0])
+        self.model_combo.pack(anchor=tk.W, padx=12, pady=(0, 12))
 
 
-        # ── Sidebar: instructions ───────────────────────────────────
-        tk.Frame(sidebar, bg="#CCCCCC", height=1).pack(fill=tk.X, padx=12, pady=4)
 
-        instructions = [
-            ("🖱 Drag", "Draw box"),
-            ("Double-Click", "Auto-box at cursor"),
-            ("Spacebar", "Auto-box at cursor"),
-            ("Right-click", "Delete box"),
-            ("← →  or  A/D", "Prev / Next"),
-            ("Scroll or + / -", "Zoom In / Out"),
-            ("Ctrl+Z", "Undo last box"),
-            ("Ctrl+S", "Save labels"),
-        ]
-        tk.Label(
-            sidebar, text="Controls", font=("Segoe UI", 11, "bold"),
-            bg=SIDEBAR_BG, fg=ACCENT
-        ).pack(anchor=tk.W, padx=12, pady=(8, 4))
 
-        for key, action in instructions:
-            row = tk.Frame(sidebar, bg=SIDEBAR_BG)
-            row.pack(anchor=tk.W, padx=12, pady=1)
-            tk.Label(row, text=key, font=("Consolas", 9, "bold"), bg=SIDEBAR_BG, fg="#333333", width=14, anchor=tk.W).pack(side=tk.LEFT)
-            tk.Label(row, text=action, font=("Segoe UI", 9), bg=SIDEBAR_BG, fg=TEXT_COLOR).pack(side=tk.LEFT)
+
 
         # ── Sidebar: buttons ────────────────────────────────────────
         tk.Frame(sidebar, bg="#CCCCCC", height=1).pack(fill=tk.X, padx=12, pady=12)
@@ -1082,30 +1058,36 @@ class AnnotationApp:
             messagebox.showerror("Error", "Invalid confidence value")
             return
             
+        selected_model = getattr(self, 'model_combo', None)
+        if selected_model:
+            selected_model = selected_model.get()
+        else:
+            selected_model = "None"
+
+        if selected_model == "None":
+            messagebox.showerror("Error", "No model selected.")
+            return
+
+        if self.yolo_model is not None and getattr(self, 'loaded_model_name', None) != selected_model:
+            print(f"[INFO] Switching model to {selected_model}")
+            self.yolo_model = None
+
         if self.yolo_model is None:
-            self.status.config(text=" Loading YOLO model...")
+            self.status.config(text=f" Loading YOLO model: {selected_model}...")
             self.root.update()
             try:
                 from ultralytics import YOLO
                 
-                # Automatically find the most recently updated best.pt model
-                model_path = None
-                detect_dir = PROJECT_ROOT / "runs" / "detect"
-                if detect_dir.exists():
-                    runs = sorted([d for d in detect_dir.iterdir() if d.is_dir()], key=lambda x: x.stat().st_mtime, reverse=True)
-                    for run in runs:
-                        p = run / "weights" / "best.pt"
-                        if p.exists():
-                            model_path = p
-                            break
+                model_path = PROJECT_ROOT / "runs" / "detect" / selected_model / "weights" / "best.pt"
                 
-                if model_path is None or not model_path.exists():
-                    messagebox.showerror("Error", "Could not find a trained best.pt model in runs/detect/!")
+                if not model_path.exists():
+                    messagebox.showerror("Error", f"Could not find a trained best.pt model in {model_path}!")
                     self.status.config(text=" Model load failed")
                     return
                     
                 print(f"[INFO] Lazy-loading model from: {model_path}")
                 self.yolo_model = YOLO(model_path)
+                self.loaded_model_name = selected_model
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to load YOLO: {e}")
                 self.status.config(text=" Model load failed")
