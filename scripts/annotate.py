@@ -231,9 +231,37 @@ class AnnotationApp:
         self.auto_snap = tk.BooleanVar(value=True)
         tk.Checkbutton(
             header_controls, text="Auto-Snap", variable=self.auto_snap,
-            bg=ACCENT, fg="white", selectcolor=BG_COLOR,
+            bg=ACCENT, fg="white", selectcolor="#FFFFFF",
             activebackground=ACCENT, activeforeground="white"
         ).pack(side=tk.LEFT, padx=(10, 2))
+
+        # 7. Clean Overlaps
+        tk.Label(header_controls, text="Max Overlap%:", font=("Segoe UI", 9, "bold"), bg=ACCENT, fg="white").pack(side=tk.LEFT, padx=(10, 2))
+        self.clean_threshold_var = tk.StringVar(value="80")
+        self.clean_threshold_entry = tk.Entry(
+            header_controls, textvariable=self.clean_threshold_var, width=4, font=("Consolas", 10),
+            bg="#FFFFFF", fg="black", insertbackground="black", bd=0
+        )
+        self.clean_threshold_entry.pack(side=tk.LEFT, padx=2)
+        tk.Button(header_controls, text="Clean", font=("Segoe UI", 8, "bold"), bg="#EF4444", fg="white", bd=0, cursor="hand2", padx=4, command=self._clean_overlapping_boxes).pack(side=tk.LEFT, padx=2)
+        tk.Button(header_controls, text="Undo", font=("Segoe UI", 8, "bold"), bg="#F59E0B", fg="white", bd=0, cursor="hand2", padx=4, command=self._undo_clean_boxes).pack(side=tk.LEFT, padx=2)
+        
+        self.clean_threshold_var.trace_add("write", lambda *args: self._redraw_boxes())
+
+        # 8. Visibility Filters
+        self.show_red = tk.BooleanVar(value=True)
+        self.show_orange = tk.BooleanVar(value=True)
+        self.show_yellow = tk.BooleanVar(value=True)
+        self.show_green = tk.BooleanVar(value=True)
+        
+        self.chk_red = tk.Checkbutton(header_controls, text="Red (0)", variable=self.show_red, bg=ACCENT, fg="#EF4444", selectcolor="#FFFFFF", activebackground=ACCENT, activeforeground="#EF4444", font=("Segoe UI", 8, "bold"), command=self._redraw_boxes)
+        self.chk_red.pack(side=tk.LEFT, padx=(6, 2))
+        self.chk_orange = tk.Checkbutton(header_controls, text="Org (0)", variable=self.show_orange, bg=ACCENT, fg="#F97316", selectcolor="#FFFFFF", activebackground=ACCENT, activeforeground="#F97316", font=("Segoe UI", 8, "bold"), command=self._redraw_boxes)
+        self.chk_orange.pack(side=tk.LEFT, padx=2)
+        self.chk_yellow = tk.Checkbutton(header_controls, text="Yel (0)", variable=self.show_yellow, bg=ACCENT, fg="#FACC15", selectcolor="#FFFFFF", activebackground=ACCENT, activeforeground="#FACC15", font=("Segoe UI", 8, "bold"), command=self._redraw_boxes)
+        self.chk_yellow.pack(side=tk.LEFT, padx=2)
+        self.chk_green = tk.Checkbutton(header_controls, text="Grn (0)", variable=self.show_green, bg=ACCENT, fg="#22C55E", selectcolor="#FFFFFF", activebackground=ACCENT, activeforeground="#22C55E", font=("Segoe UI", 8, "bold"), command=self._redraw_boxes)
+        self.chk_green.pack(side=tk.LEFT, padx=2)
 
         self.progress_label = tk.Label(
             top, text="", font=("Segoe UI", 11), bg=ACCENT, fg="#FFFFFF"
@@ -293,6 +321,23 @@ class AnnotationApp:
         )
         self.image_combo.pack(fill=tk.X, padx=12, pady=(0, 2))
         self.image_combo.bind("<<ComboboxSelected>>", self._on_combo_jump)
+        
+        nav_frame = tk.Frame(sidebar, bg=SIDEBAR_BG)
+        nav_frame.pack(fill=tk.X, padx=12, pady=(4, 2))
+        
+        nav_btn_style = {"font": ("Segoe UI", 9, "bold"), "cursor": "hand2", "bd": 0, "pady": 4}
+        
+        self.prev_btn = tk.Button(
+            nav_frame, text="◀ Prev", bg="#888888", fg="white",
+            activebackground="#666666", command=self._prev_image, **nav_btn_style
+        )
+        self.prev_btn.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 2))
+        
+        self.next_btn = tk.Button(
+            nav_frame, text="Next ▶", bg=ACCENT, fg="white",
+            activebackground="#6D28D9", command=self._next_image, **nav_btn_style
+        )
+        self.next_btn.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(2, 0))
 
         self.size_label = tk.Label(
             sidebar, text="", font=("Consolas", 9), bg=SIDEBAR_BG, fg="#666666"
@@ -402,17 +447,7 @@ class AnnotationApp:
         )
         self.export_btn.pack(pady=2)
 
-        self.prev_btn = tk.Button(
-            sidebar, text="  Previous", bg="#888888", fg="white",
-            activebackground="#666666", command=self._prev_image, **btn_style
-        )
-        self.prev_btn.pack(pady=2)
 
-        self.next_btn = tk.Button(
-            sidebar, text="Next  ", bg=ACCENT, fg="white",
-            activebackground="#6D28D9", command=self._next_image, **btn_style
-        )
-        self.next_btn.pack(pady=2)
 
         tk.Frame(sidebar, bg="#CCCCCC", height=1).pack(fill=tk.X, padx=12, pady=8)
 
@@ -789,6 +824,72 @@ class AnnotationApp:
             self.default_w = 0.05
             self.default_h = 0.05
 
+    def _clean_overlapping_boxes(self):
+        if not self.boxes: return
+        try:
+            threshold = float(self.clean_threshold_var.get()) / 100.0
+        except ValueError:
+            return
+            
+        self.boxes_backup = list(self.boxes) # Save for undo
+        
+        import numpy as np
+        boxes_arr = np.array([
+            [b.x_center - b.w/2, b.y_center - b.h/2, b.x_center + b.w/2, b.y_center + b.h/2]
+            for b in self.boxes
+        ])
+        
+        x1, y1 = boxes_arr[:, 0], boxes_arr[:, 1]
+        x2, y2 = boxes_arr[:, 2], boxes_arr[:, 3]
+        
+        ix1 = np.maximum(x1[:, None], x1[None, :])
+        iy1 = np.maximum(y1[:, None], y1[None, :])
+        ix2 = np.minimum(x2[:, None], x2[None, :])
+        iy2 = np.minimum(y2[:, None], y2[None, :])
+        
+        inter_w = np.maximum(0.0, ix2 - ix1)
+        inter_h = np.maximum(0.0, iy2 - iy1)
+        inter_area = inter_w * inter_h
+        
+        areas = (x2 - x1) * (y2 - y1)
+        min_areas = np.minimum(areas[:, None], areas[None, :])
+        
+        with np.errstate(divide='ignore', invalid='ignore'):
+            overlap_matrix = inter_area / min_areas
+            overlap_matrix[np.isnan(overlap_matrix)] = 0.0
+            overlap_matrix[np.isinf(overlap_matrix)] = 0.0
+            
+        np.fill_diagonal(overlap_matrix, 0.0)
+        
+        to_remove = set()
+        for i in range(len(self.boxes)):
+            if i in to_remove: continue
+            for j in range(i+1, len(self.boxes)):
+                if j in to_remove: continue
+                if overlap_matrix[i, j] > threshold:
+                    if areas[j] < areas[i]:
+                        to_remove.add(j)
+                    else:
+                        to_remove.add(i)
+                        break
+        
+        if to_remove:
+            self.boxes = [b for idx, b in enumerate(self.boxes) if idx not in to_remove]
+            self._redraw_boxes()
+            self._save_labels()
+            self._update_ui()
+            self.status.config(text=f" Cleaned {len(to_remove)} boxes with >{int(threshold*100)}% overlap.")
+        else:
+            self.status.config(text=" No boxes found exceeding overlap threshold.")
+
+    def _undo_clean_boxes(self):
+        if hasattr(self, 'boxes_backup') and self.boxes_backup:
+            self.boxes = list(self.boxes_backup)
+            self._redraw_boxes()
+            self._save_labels()
+            self._update_ui()
+            self.status.config(text=" Restored boxes from backup.")
+
     # ════════════════════════════════════════════════════════════════
     #  BOX RENDERING
     # ════════════════════════════════════════════════════════════════
@@ -833,30 +934,71 @@ class AnnotationApp:
         else:
             max_overlaps = []
             
+        if hasattr(self, 'chk_red'):
+            if self.boxes and len(max_overlaps) > 0:
+                red_count = int(np.sum(max_overlaps >= 0.8))
+                orange_count = int(np.sum((max_overlaps >= 0.5) & (max_overlaps < 0.8)))
+                yellow_count = int(np.sum((max_overlaps > 0.0) & (max_overlaps < 0.5)))
+                green_count = int(np.sum(max_overlaps == 0.0))
+                
+                self.chk_red.config(text=f"Red ({red_count})")
+                self.chk_orange.config(text=f"Org ({orange_count})")
+                self.chk_yellow.config(text=f"Yel ({yellow_count})")
+                self.chk_green.config(text=f"Grn ({green_count})")
+            else:
+                self.chk_red.config(text="Red (0)")
+                self.chk_orange.config(text="Org (0)")
+                self.chk_yellow.config(text="Yel (0)")
+                self.chk_green.config(text="Grn (0)")
+            
         for i, box in enumerate(self.boxes):
             is_massive = box.w > 0.5 or box.h > 0.5
             if is_massive:
-                box_colors.append((255, 0, 0))
-                box_color_strs.append("#FF0000")
+                if hasattr(self, 'show_red') and not self.show_red.get():
+                    box_colors.append(None)
+                    box_color_strs.append(None)
+                else:
+                    box_colors.append((255, 0, 0))
+                    box_color_strs.append("#FF0000")
                 continue
                 
             max_overlap = max_overlaps[i] if i < len(max_overlaps) else 0.0
                         
             if max_overlap >= 0.8:
-                box_colors.append(OVERLAP_80_RGB)
-                box_color_strs.append(OVERLAP_80_HEX)
+                if hasattr(self, 'show_red') and not self.show_red.get():
+                    box_colors.append(None)
+                    box_color_strs.append(None)
+                else:
+                    box_colors.append(OVERLAP_80_RGB)
+                    box_color_strs.append(OVERLAP_80_HEX)
             elif max_overlap >= 0.5:
-                box_colors.append(OVERLAP_50_RGB)
-                box_color_strs.append(OVERLAP_50_HEX)
+                if hasattr(self, 'show_orange') and not self.show_orange.get():
+                    box_colors.append(None)
+                    box_color_strs.append(None)
+                else:
+                    box_colors.append(OVERLAP_50_RGB)
+                    box_color_strs.append(OVERLAP_50_HEX)
             elif max_overlap > 0:
-                box_colors.append(OVERLAP_0_RGB)
-                box_color_strs.append(OVERLAP_0_HEX)
+                if hasattr(self, 'show_yellow') and not self.show_yellow.get():
+                    box_colors.append(None)
+                    box_color_strs.append(None)
+                else:
+                    box_colors.append(OVERLAP_0_RGB)
+                    box_color_strs.append(OVERLAP_0_HEX)
             elif getattr(box, 'is_auto', False):
-                box_colors.append(AUTO_BOX_RGB)
-                box_color_strs.append(AUTO_BOX_HEX)
+                if hasattr(self, 'show_green') and not self.show_green.get():
+                    box_colors.append(None)
+                    box_color_strs.append(None)
+                else:
+                    box_colors.append(AUTO_BOX_RGB)
+                    box_color_strs.append(AUTO_BOX_HEX)
             else:
-                box_colors.append(BOX_RGB)
-                box_color_strs.append(BOX_COLOR)
+                if hasattr(self, 'show_green') and not self.show_green.get():
+                    box_colors.append(None)
+                    box_color_strs.append(None)
+                else:
+                    box_colors.append(BOX_RGB)
+                    box_color_strs.append(BOX_COLOR)
 
         # Draw comparison boxes if enabled
         if hasattr(self, 'compare_labels_dir') and self.compare_labels_dir and self.show_compare.get():
@@ -906,6 +1048,7 @@ class AnnotationApp:
                 ly2 = cy2 - self.img_offset_y
                 
                 color = box_colors[i]
+                if color is None: continue
                 
                 # Make massive/overlap boxes slightly thicker so they stand out
                 is_massive = box.w > 0.5 or box.h > 0.5
@@ -929,6 +1072,7 @@ class AnnotationApp:
 
 
             color_str = box_color_strs[i]
+            if color_str is None: continue
             # Small label
             label_id = self.canvas.create_text(
                 cx1 + 3, cy1 - 10,
