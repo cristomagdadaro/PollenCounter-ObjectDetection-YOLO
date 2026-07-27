@@ -118,12 +118,31 @@ Now that the foundational architecture, robust K-Fold training, and unified UI t
 
 ---
 
+##  Project Architecture (Config-Driven Modular Pipeline)
+
+The project has recently been refactored from isolated monolithic scripts into a modular pipeline with a strong Separation of Concerns (SoC).
+
+### Shared Library (`src/`)
+Instead of duplicating code, all scripts now import shared logic from the `src/` Python package:
+- **`src.paths`**: Centralized definitions for all folders and file extensions.
+- **`src.bounding_box`**: Unified `BoundingBox` class and IoU calculations.
+- **`src.model_utils`**: Helpers for auto-discovering the latest weights and collecting images.
+- **`src.settings`**: A robust JSON reader/writer that syncs UI state across all tools (saved in `config/inference_settings.json`).
+- **`src.theme`**: Centralized colors and fonts for all Tkinter GUIs.
+
+### Externalized Training Config
+Over 20 YOLO hyperparameters (learning rate, augmentations, optimizer) have been extracted from `train.py` into **`config/training.yaml`**. You can now tweak training strategies without touching any Python code.
+
+---
+
 ##  Project Structure
 
 ```text
 PollenCounter-ObjectDetection-YOLO/
 ├── config/
-│   └── pollen_dataset.yaml       # Dataset paths & class names
+│   ├── pollen_dataset.yaml       # Dataset paths & class names
+│   ├── training.yaml             # Externalized YOLO hyperparameters
+│   └── inference_settings.json   # Auto-saved GUI states
 ├── datasets/
 │   ├── images/
 │   │   ├── train/                
@@ -133,14 +152,17 @@ PollenCounter-ObjectDetection-YOLO/
 │       ├── train/                
 │       ├── val/                  
 │       └── excluded/             
-├── input_images/                 # Images for batch inference
-├── output/                       # XLSX reports & annotated images
-├── scripts/
-│   ├── train_gui.py              # GUI Training launcher
-│   ├── train.py                  # CLI Training launcher
+├── src/                          # Shared Library (Core Logic)
+│   ├── bounding_box.py           
+│   ├── model_utils.py            
+│   ├── paths.py                  
+│   ├── settings.py               
+│   └── theme.py                  
+├── scripts/                      # Entry-Point Tools
+│   ├── train.py                  # CLI Training launcher (K-Fold supported)
 │   ├── inference.py              # Unified Batch inference & Auto-Annotation
 │   ├── annotate.py               # GUI Annotation Tool
 │   ├── compare_val.py            # GUI Validation visualizer & reporting
-│   ├── clean_all_duplicates.py   # Utility to purge overlapping bounding boxes
-│   └── clean_duplicate_points.py # Utility to purge duplicate dot annotations
+│   └── clean_duplicate_points.py # Utility to purge overlapping bounding boxes
 └── README.md
+```

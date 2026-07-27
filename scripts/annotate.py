@@ -18,7 +18,6 @@ from pathlib import Path
 from tkinter import messagebox, ttk
 from typing import Optional
 
-# Ensure project root is on sys.path so 'from src...' works
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from PIL import Image, ImageTk, ImageDraw
@@ -970,12 +969,15 @@ class AnnotationApp:
         x2 = int((box.x_center + box.w / 2) * img_w)
         y2 = int((box.y_center + box.h / 2) * img_h)
         
-        x1, y1 = max(0, x1), max(0, y1)
-        x2, y2 = min(img_w, x2), min(img_h, y2)
+        pad_x = int((x2 - x1) * 0.3)
+        pad_y = int((y2 - y1) * 0.3)
         
-        if x2 <= x1 or y2 <= y1: return False
+        rx1, ry1 = max(0, x1 - pad_x), max(0, y1 - pad_y)
+        rx2, ry2 = min(img_w, x2 + pad_x), min(img_h, y2 + pad_y)
+        
+        if rx2 <= rx1 or ry2 <= ry1: return False
             
-        roi = img_bgr[y1:y2, x1:x2]
+        roi = img_bgr[ry1:ry2, rx1:rx2]
         try:
             gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
             blurred = cv2.GaussianBlur(gray, (5, 5), 0)
@@ -988,10 +990,10 @@ class AnnotationApp:
                 
                 pad_w = int(cw * 0.08)
                 pad_h = int(ch * 0.08)
-                new_x1 = max(0, x1 + cx - pad_w)
-                new_y1 = max(0, y1 + cy - pad_h)
-                new_x2 = min(img_w, x1 + cx + cw + pad_w)
-                new_y2 = min(img_h, y1 + cy + ch + pad_h)
+                new_x1 = max(0, rx1 + cx - pad_w)
+                new_y1 = max(0, ry1 + cy - pad_h)
+                new_x2 = min(img_w, rx1 + cx + cw + pad_w)
+                new_y2 = min(img_h, ry1 + cy + ch + pad_h)
                 
                 box.w = (new_x2 - new_x1) / img_w
                 box.h = (new_y2 - new_y1) / img_h

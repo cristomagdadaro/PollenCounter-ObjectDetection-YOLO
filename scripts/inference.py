@@ -140,14 +140,17 @@ def run_inference(
 
                     for cls_id, box in zip(cls_ids, xyxy):
                         x1, y1, x2, y2 = map(int, box)
-                        x1, y1 = max(0, x1), max(0, y1)
-                        x2, y2 = min(img_w, x2), min(img_h, y2)
-
-                        if x2 <= x1 or y2 <= y1:
+                        pad_x = int((x2 - x1) * 0.3)
+                        pad_y = int((y2 - y1) * 0.3)
+                        
+                        rx1, ry1 = max(0, x1 - pad_x), max(0, y1 - pad_y)
+                        rx2, ry2 = min(img_w, x2 + pad_x), min(img_h, y2 + pad_y)
+                        
+                        if rx2 <= rx1 or ry2 <= ry1:
                             continue
 
                         # Snap to pollen edges via OpenCV contours
-                        roi = img[y1:y2, x1:x2]
+                        roi = img[ry1:ry2, rx1:rx2]
                         try:
                             gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
                             blurred = cv2.GaussianBlur(gray, (5, 5), 0)
@@ -158,10 +161,10 @@ def run_inference(
                                 largest = max(contours, key=cv2.contourArea)
                                 cx, cy, cw, ch = cv2.boundingRect(largest)
                                 pad_w, pad_h = int(cw * 0.08), int(ch * 0.08)
-                                new_x1 = max(0, x1 + cx - pad_w)
-                                new_y1 = max(0, y1 + cy - pad_h)
-                                new_x2 = min(img_w, x1 + cx + cw + pad_w)
-                                new_y2 = min(img_h, y1 + cy + ch + pad_h)
+                                new_x1 = max(0, rx1 + cx - pad_w)
+                                new_y1 = max(0, ry1 + cy - pad_h)
+                                new_x2 = min(img_w, rx1 + cx + cw + pad_w)
+                                new_y2 = min(img_h, ry1 + cy + ch + pad_h)
 
                                 w_norm = (new_x2 - new_x1) / img_w
                                 h_norm = (new_y2 - new_y1) / img_h
