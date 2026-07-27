@@ -19,6 +19,17 @@ PROGRESS_TODO   = "#CCCCCC"     # Progress bar empty
 HUMAN_COLOR     = "#00AA00"     # Human label overlay (green)
 MODEL_COLOR     = "#FF0000"     # Model prediction overlay (red)
 
+# Annotation Box Colors (Hex and RGB)
+OVERLAP_80_HEX  = "#FF0032"
+OVERLAP_80_RGB  = (255, 0, 50)
+OVERLAP_50_HEX  = "#FF7800"
+OVERLAP_50_RGB  = (255, 120, 0)
+OVERLAP_0_HEX   = "#FFE100"
+OVERLAP_0_RGB   = (255, 225, 0)
+AUTO_BOX_HEX    = "#8B5CF6"
+AUTO_BOX_RGB    = (139, 92, 246)
+BOX_RGB         = (0, 255, 136)
+
 # ── Fonts ────────────────────────────────────────────────────────────
 FONT_LABEL  = ("Segoe UI", 10, "bold")
 FONT_INPUT  = ("Consolas", 10)

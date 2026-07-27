@@ -31,6 +31,8 @@ from src.settings import load_settings, save_settings
 from src.theme import (
     BOX_COLOR, BOX_COLOR_HOVER, ACTIVE_BOX_COLOR,
     BG_COLOR, SIDEBAR_BG, ACCENT, TEXT_COLOR, PROGRESS_DONE, PROGRESS_TODO,
+    OVERLAP_80_HEX, OVERLAP_80_RGB, OVERLAP_50_HEX, OVERLAP_50_RGB,
+    OVERLAP_0_HEX, OVERLAP_0_RGB, AUTO_BOX_HEX, AUTO_BOX_RGB, BOX_RGB
 )
 
 # Aliases for backward compatibility within this file
@@ -801,38 +803,59 @@ class AnnotationApp:
         box_color_strs = []
         box_line_widths = []
         
+        import numpy as np
+        if self.boxes:
+            boxes_arr = np.array([
+                [b.x_center - b.w/2, b.y_center - b.h/2, b.x_center + b.w/2, b.y_center + b.h/2]
+                for b in self.boxes
+            ])
+            x1_arr, y1_arr, x2_arr, y2_arr = boxes_arr[:,0], boxes_arr[:,1], boxes_arr[:,2], boxes_arr[:,3]
+            
+            ix1 = np.maximum(x1_arr[:, None], x1_arr[None, :])
+            iy1 = np.maximum(y1_arr[:, None], y1_arr[None, :])
+            ix2 = np.minimum(x2_arr[:, None], x2_arr[None, :])
+            iy2 = np.minimum(y2_arr[:, None], y2_arr[None, :])
+            
+            inter_w = np.maximum(0.0, ix2 - ix1)
+            inter_h = np.maximum(0.0, iy2 - iy1)
+            inter_area = inter_w * inter_h
+            
+            areas = (x2_arr - x1_arr) * (y2_arr - y1_arr)
+            min_areas = np.minimum(areas[:, None], areas[None, :])
+            
+            with np.errstate(divide='ignore', invalid='ignore'):
+                overlap_matrix = inter_area / min_areas
+                overlap_matrix[np.isnan(overlap_matrix)] = 0.0
+                overlap_matrix[np.isinf(overlap_matrix)] = 0.0
+                
+            np.fill_diagonal(overlap_matrix, 0.0)
+            max_overlaps = np.max(overlap_matrix, axis=1)
+        else:
+            max_overlaps = []
+            
         for i, box in enumerate(self.boxes):
             is_massive = box.w > 0.5 or box.h > 0.5
             if is_massive:
                 box_colors.append((255, 0, 0))
                 box_color_strs.append("#FF0000")
-                box_line_widths.append(4)
                 continue
                 
-            x1 = box.x_center - box.w / 2
-            y1 = box.y_center - box.h / 2
-            x2 = box.x_center + box.w / 2
-            y2 = box.y_center + box.h / 2
-            
-            is_overlap = False
-            for j, other in enumerate(self.boxes):
-                if i == j: continue
-                ox1 = other.x_center - other.w / 2
-                oy1 = other.y_center - other.h / 2
-                ox2 = other.x_center + other.w / 2
-                oy2 = other.y_center + other.h / 2
-                if not (x2 <= ox1 or x1 >= ox2 or y2 <= oy1 or y1 >= oy2):
-                    is_overlap = True
-                    break
-                    
-            if is_overlap:
-                box_colors.append((245, 158, 11))
-                box_color_strs.append("#F59E0B")
+            max_overlap = max_overlaps[i] if i < len(max_overlaps) else 0.0
+                        
+            if max_overlap >= 0.8:
+                box_colors.append(OVERLAP_80_RGB)
+                box_color_strs.append(OVERLAP_80_HEX)
+            elif max_overlap >= 0.5:
+                box_colors.append(OVERLAP_50_RGB)
+                box_color_strs.append(OVERLAP_50_HEX)
+            elif max_overlap > 0:
+                box_colors.append(OVERLAP_0_RGB)
+                box_color_strs.append(OVERLAP_0_HEX)
             elif getattr(box, 'is_auto', False):
-                box_colors.append((139, 92, 246))
-                box_color_strs.append("#8B5CF6")
+                box_colors.append(AUTO_BOX_RGB)
+                box_color_strs.append(AUTO_BOX_HEX)
             else:
-                box_colors.append((0, 255, 136))
+                box_colors.append(BOX_RGB)
                 box_color_strs.append(BOX_COLOR)
 
         # Draw comparison boxes if enabled
@@ -998,13 +1021,14 @@ class AnnotationApp:
         export_img.save(out_path, quality=95)
         self.status.config(text=f" Exported JPG to {out_path.name}")
 
-    def _snap_single_box(self, box):
+    def _snap_single_box(self, box, img_bgr=None):
         if not self.pil_img: return False
         import cv2, numpy as np
-        try:
-            img_bgr = cv2.cvtColor(np.array(self.pil_img), cv2.COLOR_RGB2BGR)
-        except Exception:
-            return False
+        if img_bgr is None:
+            try:
+                img_bgr = cv2.cvtColor(np.array(self.pil_img), cv2.COLOR_RGB2BGR)
+            except Exception:
+                return False
             
         img_h, img_w = img_bgr.shape[:2]
         x1 = int((box.x_center - box.w / 2) * img_w)
@@ -1026,10 +1050,33 @@ class AnnotationApp:
             blurred = cv2.GaussianBlur(gray, (5, 5), 0)
             _, thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
             
+            # Apply morphological opening to disconnect slightly touching grains
+            kernel = np.ones((3, 3), np.uint8)
+            thresh = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel, iterations=1)
+            
             contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             if contours:
-                largest_contour = max(contours, key=cv2.contourArea)
-                cx, cy, cw, ch = cv2.boundingRect(largest_contour)
+                orig_cx_roi = (x1 + x2) / 2.0 - rx1
+                orig_cy_roi = (y1 + y2) / 2.0 - ry1
+                
+                best_contour = None
+                min_dist = float('inf')
+                
+                for cnt in contours:
+                    if cv2.contourArea(cnt) < 10: continue
+                    br_x, br_y, br_w, br_h = cv2.boundingRect(cnt)
+                    cnt_cx = br_x + br_w / 2.0
+                    cnt_cy = br_y + br_h / 2.0
+                    
+                    dist = (cnt_cx - orig_cx_roi)**2 + (cnt_cy - orig_cy_roi)**2
+                    if dist < min_dist:
+                        min_dist = dist
+                        best_contour = cnt
+                
+                if best_contour is None:
+                    return False
+                    
+                cx, cy, cw, ch = cv2.boundingRect(best_contour)
                 
                 pad_w = int(cw * 0.08)
                 pad_h = int(ch * 0.08)
@@ -1050,11 +1097,21 @@ class AnnotationApp:
     def _snap_boxes(self):
         """Recompute bounding boxes to snap perfectly to pollen edges using OpenCV."""
         if not self.pil_img or not self.boxes: return
+        import cv2, numpy as np
+        import concurrent.futures
         
+        try:
+            img_bgr = cv2.cvtColor(np.array(self.pil_img), cv2.COLOR_RGB2BGR)
+        except Exception:
+            return
+            
+        def snap(box):
+            return self._snap_single_box(box, img_bgr=img_bgr)
+            
         updated = 0
-        for box in self.boxes:
-            if self._snap_single_box(box):
-                updated += 1
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            results = list(executor.map(snap, self.boxes))
+            updated = sum(1 for r in results if r)
                 
         self._redraw_boxes()
         self._save_labels()

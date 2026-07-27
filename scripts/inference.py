@@ -155,11 +155,34 @@ def run_inference(
                             gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
                             blurred = cv2.GaussianBlur(gray, (5, 5), 0)
                             _, thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+                            
+                            kernel = np.ones((3, 3), np.uint8)
+                            thresh = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel, iterations=1)
+                            
                             contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
                             if contours:
-                                largest = max(contours, key=cv2.contourArea)
-                                cx, cy, cw, ch = cv2.boundingRect(largest)
+                                orig_cx_roi = (x1 + x2) / 2.0 - rx1
+                                orig_cy_roi = (y1 + y2) / 2.0 - ry1
+                                
+                                best_contour = None
+                                min_dist = float('inf')
+                                
+                                for cnt in contours:
+                                    if cv2.contourArea(cnt) < 10: continue
+                                    br_x, br_y, br_w, br_h = cv2.boundingRect(cnt)
+                                    cnt_cx = br_x + br_w / 2.0
+                                    cnt_cy = br_y + br_h / 2.0
+                                    
+                                    dist = (cnt_cx - orig_cx_roi)**2 + (cnt_cy - orig_cy_roi)**2
+                                    if dist < min_dist:
+                                        min_dist = dist
+                                        best_contour = cnt
+                                
+                                if best_contour is None:
+                                    raise ValueError("No valid contour")
+                                
+                                cx, cy, cw, ch = cv2.boundingRect(best_contour)
                                 pad_w, pad_h = int(cw * 0.08), int(ch * 0.08)
                                 new_x1 = max(0, rx1 + cx - pad_w)
                                 new_y1 = max(0, ry1 + cy - pad_h)
