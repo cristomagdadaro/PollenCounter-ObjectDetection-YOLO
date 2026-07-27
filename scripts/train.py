@@ -29,7 +29,7 @@ from ultralytics import YOLO
 # ─── Project paths ──────────────────────────────────────────────────
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATASET_YAML = PROJECT_ROOT / "config" / "pollen_dataset.yaml"
-DEFAULT_MODEL = "yolo11n.pt"
+DEFAULT_MODEL = "pretrained_models/yolo11n.pt"
 
 
 def parse_args() -> argparse.Namespace:
@@ -42,7 +42,7 @@ def parse_args() -> argparse.Namespace:
         "--model",
         type=str,
         default=DEFAULT_MODEL,
-        help="Base YOLO model (e.g. yolo26n.pt, yolo26s.pt).",
+        help="Base YOLO model (e.g. pretrained_models/yolo26n.pt).",
     )
     parser.add_argument(
         "--data",
@@ -179,8 +179,10 @@ def _run_standard_training(args, data_path):
         project=args.project,
         name=args.name,
         exist_ok=True,
+        amp=False,                  # Disables Automatic Mixed Precision to prevent NaN loss crashes on certain GPUs.
         optimizer="AdamW",          # Better for smaller datasets than default SGD. Uses weight decay to prevent overfitting.
-        patience=30,                # Early stopping: Halts training if accuracy doesn't improve for 30 epochs.
+        lr0=0.001,                  # Lower initial learning rate for AdamW to prevent exploding gradients (NaN loss).
+        patience=50,                # Early stopping: Halts training if accuracy doesn't improve for 30 epochs.
         dropout=0.15,               # Drops 15% of neurons randomly to force the model to learn multiple pollen features, preventing memorization.
         degrees=180.0,              # Rotates images randomly up to 180 degrees (pollen orientation doesn't matter).
         fliplr=0.5,                 # 50% chance to flip horizontally.
