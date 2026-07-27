@@ -1443,7 +1443,7 @@ class AnnotationApp:
             self.status.config(text=f" Discarded {removed} auto-recounted boxes.")
 
     def _regional_recount(self, nx1, ny1, nx2, ny2):
-        """Run YOLO only in the region [nx1, nx2] x [ny1, ny2] using full-image inference."""
+        """Run YOLO only in the region [nx1, nx2] x [ny1, ny2] by cropping the image."""
         if not hasattr(self, 'orig_pil_img') or not self.orig_pil_img or not self.image_paths: return
 
         force = self.force_recount_var.get()
@@ -1500,9 +1500,33 @@ class AnnotationApp:
         self.status.config(text=f" Running regional inference...")
         self.root.update()
         
+        # Crop the image to the selected region
+        import numpy as np
+        import cv2
         img_path = str(self.image_paths[self.current_idx])
+        img_bgr = cv2.imread(img_path)
+        if img_bgr is None:
+            return
+            
+        img_h, img_w = img_bgr.shape[:2]
+        
+        px1 = int(nx1 * img_w)
+        py1 = int(ny1 * img_h)
+        px2 = int(nx2 * img_w)
+        py2 = int(ny2 * img_h)
+        
+        px1 = max(0, min(img_w, px1))
+        py1 = max(0, min(img_h, py1))
+        px2 = max(0, min(img_w, px2))
+        py2 = max(0, min(img_h, py2))
+        
+        if px2 <= px1 or py2 <= py1:
+            return
+            
+        roi = img_bgr[py1:py2, px1:px2]
+        
         results = self.yolo_model.predict(
-            source=img_path,
+            source=roi,
             conf=conf_val,
             iou=0.45,
             imgsz=1024,
@@ -1517,13 +1541,24 @@ class AnnotationApp:
             return
             
         new_count = 0
+        roi_w = px2 - px1
+        roi_h = py2 - py1
+        
         for box_data in boxes_data:
             xywhn = box_data.xywhn[0].cpu().numpy()
-            xc, yc, w, h = xywhn
+            xc_roi, yc_roi, w_roi, h_roi = xywhn
             
-            # Check if this AI box center is inside the drawn region
-            if not (nx1 <= xc <= nx2 and ny1 <= yc <= ny2):
-                continue
+            # Convert ROI normalized coordinates to full image pixel coordinates
+            xc_px = px1 + (xc_roi * roi_w)
+            yc_px = py1 + (yc_roi * roi_h)
+            w_px = w_roi * roi_w
+            h_px = h_roi * roi_h
+            
+            # Convert back to full image normalized coordinates
+            xc = xc_px / img_w
+            yc = yc_px / img_h
+            w = w_px / img_w
+            h = h_px / img_h
             
             new_box = BoundingBox(float(xc), float(yc), float(w), float(h), class_id=0, is_auto=True)
             
