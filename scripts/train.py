@@ -1,130 +1,96 @@
 #!/usr/bin/env python3
-"""
-train.py  YOLOv11s Pollen Detection Training Script
-=====================================================
+"""Train a YOLO model on annotated pollen microscopy images.
 
-Trains a YOLO model on annotated pollen microscopy images.
+Hyperparameters are loaded from config/training.yaml.
 
-Usage
------
+Usage:
     python scripts/train.py                          # defaults
     python scripts/train.py --epochs 300 --batch 8   # override
     python scripts/train.py --resume                 # resume interrupted run
-    python scripts/train.py --kfold 5                # run 5-fold cross validation
+    python scripts/train.py --kfold 5                # 5-fold cross validation
 """
 
 from __future__ import annotations
 
 import argparse
-import sys
+import os
 import random
-import yaml
 import shutil
+import sys
 from pathlib import Path
 
-# pyrefly: ignore [missing-import]
+# Ensure project root is on sys.path so 'from src...' works
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+import yaml
 from ultralytics import YOLO
 
+from src.paths import PROJECT_ROOT, DATASET_YAML, DATASET_ROOT, TRAINING_YAML, DEFAULT_MODEL
 
-# ─── Project paths ──────────────────────────────────────────────────
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DATASET_YAML = PROJECT_ROOT / "config" / "pollen_dataset.yaml"
-DEFAULT_MODEL = "pretrained_models/yolo11n.pt"
+
+def _load_training_config() -> dict:
+    """Load hyperparameters from config/training.yaml. Returns {} if missing."""
+    if not TRAINING_YAML.exists():
+        print(f"[WARNING] {TRAINING_YAML} not found, using YOLO defaults.")
+        return {}
+    with open(TRAINING_YAML, "r") as f:
+        return yaml.safe_load(f) or {}
 
 
 def parse_args() -> argparse.Namespace:
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(
-        description="Train YOLOv11s for pollen grain detection.",
+        description="Train YOLO for pollen grain detection.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument(
-        "--model",
-        type=str,
-        default=DEFAULT_MODEL,
-        help="Base YOLO model (e.g. pretrained_models/yolo26n.pt).",
-    )
-    parser.add_argument(
-        "--data",
-        type=str,
-        default=str(DATASET_YAML),
-        help="Path to the dataset YAML config.",
-    )
-    parser.add_argument(
-        "--epochs",
-        type=int,
-        default=100,
-        help="Total training epochs.",
-    )
-    parser.add_argument(
-        "--imgsz",
-        type=int,
-        default=1024,
-        help="Input image size (pixels).",
-    )
-    parser.add_argument(
-        "--batch",
-        type=int,
-        default=4,
-        help="Batch size (reduce for lower VRAM).",
-    )
-    parser.add_argument(
-        "--device",
-        type=str,
-        default="0",
-        help="Device: '0' for GPU 0, 'cpu' for CPU.",
-    )
-    parser.add_argument(
-        "--resume",
-        action="store_true",
-        help="Resume training from the last checkpoint.",
-    )
-    parser.add_argument(
-        "--project",
-        type=str,
-        default=str(PROJECT_ROOT / "runs" / "detect"),
-        help="Directory to save training runs.",
-    )
-    parser.add_argument(
-        "--name",
-        type=str,
-        default="train",
-        help="Run name inside the project directory.",
-    )
-    parser.add_argument(
-        "--kfold",
-        type=int,
-        default=0,
-        help="Number of folds for cross-validation (0 to disable).",
-    )
+    parser.add_argument("--model", type=str, default=DEFAULT_MODEL,
+                        help="Base YOLO model (e.g. pretrained_models/yolo26n.pt).")
+    parser.add_argument("--data", type=str, default=str(DATASET_YAML),
+                        help="Path to the dataset YAML config.")
+    parser.add_argument("--epochs", type=int, default=100,
+                        help="Total training epochs.")
+    parser.add_argument("--imgsz", type=int, default=1024,
+                        help="Input image size (pixels).")
+    parser.add_argument("--batch", type=int, default=4,
+                        help="Batch size (reduce for lower VRAM).")
+    parser.add_argument("--device", type=str, default="0",
+                        help="Device: '0' for GPU 0, 'cpu' for CPU.")
+    parser.add_argument("--resume", action="store_true",
+                        help="Resume training from the last checkpoint.")
+    parser.add_argument("--project", type=str,
+                        default=str(PROJECT_ROOT / "runs" / "detect"),
+                        help="Directory to save training runs.")
+    parser.add_argument("--name", type=str, default="train",
+                        help="Run name inside the project directory.")
+    parser.add_argument("--kfold", type=int, default=0,
+                        help="Number of folds for cross-validation (0 to disable).")
     return parser.parse_args()
 
 
 def _generate_annotated_image_lists(dataset_root: Path, batch_size: int) -> None:
-    """Generate train.txt and val.txt containing only images that have annotations."""
+    """Write train.txt / val.txt containing only images that have non-empty labels."""
     for split in ["train", "val"]:
         labels_dir = dataset_root / "labels" / split
         images_dir = dataset_root / "images" / split
         list_file = dataset_root / f"{split}.txt"
-        
+
         if not labels_dir.exists():
             continue
-            
+
         annotated_images = []
         for label_file in labels_dir.glob("*.txt"):
             if label_file.stat().st_size > 0:
-                # Find matching image
                 for ext in [".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".webp"]:
                     img_path = images_dir / f"{label_file.stem}{ext}"
                     if img_path.exists():
                         annotated_images.append(str(img_path.absolute()).replace("\\", "/"))
                         break
-                        
-        # Pad to prevent BatchNorm crash if remainder is 1
-        if split == "train" and len(annotated_images) > 0 and (len(annotated_images) % batch_size == 1):
+
+        # Pad to prevent BatchNorm crash when remainder is 1
+        if split == "train" and annotated_images and (len(annotated_images) % batch_size == 1):
             annotated_images.append(annotated_images[0])
-            print(f"[INFO] Padded train dataset with 1 image to prevent BatchNorm crash.")
-                        
+            print("[INFO] Padded train dataset with 1 image to prevent BatchNorm crash.")
+
         with open(list_file, "w") as f:
             for img in annotated_images:
                 f.write(f"{img}\n")
@@ -132,7 +98,7 @@ def _generate_annotated_image_lists(dataset_root: Path, batch_size: int) -> None
 
 
 def main() -> None:
-    """Entry-point: configure and launch YOLOv11s training."""
+    """Entry-point: configure and launch YOLO training."""
     args = parse_args()
 
     data_path = Path(args.data)
@@ -140,13 +106,11 @@ def main() -> None:
         print(f"[ERROR] Dataset config not found: {data_path}")
         sys.exit(1)
 
-    dataset_root = PROJECT_ROOT / "datasets"
-    
     if args.kfold > 1:
         print(f"\n[INFO] Starting {args.kfold}-Fold Cross Validation...")
-        _run_kfold(args, dataset_root)
+        _run_kfold(args, DATASET_ROOT)
     else:
-        _generate_annotated_image_lists(dataset_root, args.batch)
+        _generate_annotated_image_lists(DATASET_ROOT, args.batch)
         _run_standard_training(args, data_path)
 
 
@@ -162,7 +126,10 @@ def _run_standard_training(args, data_path):
         print(f"[INFO] Loading base model: {args.model}")
         model = YOLO(args.model)
 
-    print("[INFO] Starting YOLOv11s training …")
+    # Load hyperparameters from config/training.yaml
+    hyp = _load_training_config()
+
+    print("[INFO] Starting YOLO training ...")
     print(f"       Dataset : {data_path}")
     print(f"       Epochs  : {args.epochs}")
     print(f"       ImgSize : {args.imgsz}")
@@ -179,28 +146,7 @@ def _run_standard_training(args, data_path):
         project=args.project,
         name=args.name,
         exist_ok=True,
-        amp=False,                  # Disables Automatic Mixed Precision to prevent NaN loss crashes on certain GPUs.
-        optimizer="AdamW",          # Better for smaller datasets than default SGD. Uses weight decay to prevent overfitting.
-        lr0=0.001,                  # Lower initial learning rate for AdamW to prevent exploding gradients (NaN loss).
-        patience=50,                # Early stopping: Halts training if accuracy doesn't improve for 30 epochs.
-        dropout=0.15,               # Drops 15% of neurons randomly to force the model to learn multiple pollen features, preventing memorization.
-        degrees=180.0,              # Rotates images randomly up to 180 degrees (pollen orientation doesn't matter).
-        fliplr=0.5,                 # 50% chance to flip horizontally.
-        flipud=0.5,                 # 50% chance to flip vertically.
-        scale=0.5,                  # Scales image by +/- 50% to simulate different zoom levels.
-        translate=0.3,              # Shifts the image randomly by 30% to simulate moving the microscope slide.
-        hsv_h=0.03,                 # Randomly shifts hue (color).
-        hsv_s=0.4,                  # Randomly shifts saturation (intensity).
-        hsv_v=0.4,                  # Randomly shifts value (brightness/exposure).
-        mosaic=1.0,                 # 100% chance to stitch 4 training images together (gives rich context).
-        mixup=0.1,                  # 10% chance to blend two images together (makes the model robust to blurry/clumped pollen).
-        copy_paste=0.0,             # Disabled (not needed).
-        close_mosaic=0,             # Doesn't disable mosaic at the end of training.
-        workers=4,                  # Prevents multithreading crashes on Windows.
-        max_det=1500,               # Allows YOLO to detect up to 1500 pollen grains per image (default is 300).
-        multi_scale=False,           # Randomly resizes the image resolution by +/- 50% during training (robustness to size).
-        label_smoothing=0.1,        # Targets 90% confidence instead of 100%, preventing arrogant overfitting on blurry images.
-        box=0.05                    # Lowers priority of perfect box tightness, allowing the model to focus on simply detecting the pollen.
+        **hyp,  # Unpack all hyperparameters from training.yaml
     )
 
     best_weights = Path(args.project) / args.name / "weights" / "best.pt"
@@ -209,75 +155,74 @@ def _run_standard_training(args, data_path):
     print(f"  Best weights saved to: {best_weights}")
     print("=" * 60)
 
+    # Post-training validation
     print("\n[INFO] Running data validation on the best weights...")
     val_model = YOLO(str(best_weights))
     metrics = val_model.val(
-        data=str(data_path), 
-        split="val", 
-        device=args.device, 
-        iou=0.5, 
-        agnostic_nms=True, 
+        data=str(data_path),
+        split="val",
+        device=args.device,
+        iou=0.5,
+        agnostic_nms=True,
         max_det=1000,
         project=str(Path(args.project) / args.name),
-        name="val_results"
+        name="val_results",
     )
-    
+
     print("\n" + "=" * 60)
     print("  Validation complete!")
-    if hasattr(metrics, 'box'):
+    if hasattr(metrics, "box"):
         print(f"  Final mAP50: {metrics.box.map50:.4f}")
     print("=" * 60)
 
-    # ── Post-Training Folder Renaming ──
+    # ── Auto-rename folder: i{N}_{trainCount}T_{valCount}V_{MODEL}_{P}P_{R}R_{mAP50}A
     try:
-        import os
-        
-        # Count images
-        train_count = sum(1 for _ in open(Path(data_path).parent / "train.txt")) if (Path(data_path).parent / "train.txt").exists() else 0
-        val_count = sum(1 for _ in open(Path(data_path).parent / "val.txt")) if (Path(data_path).parent / "val.txt").exists() else 0
-        
+        train_txt = Path(data_path).parent / "train.txt"
+        val_txt = Path(data_path).parent / "val.txt"
+        train_count = sum(1 for _ in open(train_txt)) if train_txt.exists() else 0
+        val_count = sum(1 for _ in open(val_txt)) if val_txt.exists() else 0
+
         model_name = Path(args.model).stem.upper()
-        
-        if hasattr(metrics, 'box'):
+
+        if hasattr(metrics, "box"):
             p = int(metrics.box.mp * 100)
             r = int(metrics.box.mr * 100)
             map50 = int(metrics.box.map50 * 100)
         else:
             p, r, map50 = 0, 0, 0
-            
+
         detect_dir = Path(args.project)
         iteration = len([d for d in detect_dir.iterdir() if d.is_dir()])
-        
+
         new_name = f"i{iteration}_{train_count}T_{val_count}V_{model_name}_{p}P_{r}R_{map50}A"
         old_dir = detect_dir / args.name
         new_dir = detect_dir / new_name
-        
+
         if old_dir.exists():
             os.rename(str(old_dir), str(new_dir))
             print(f"\n[INFO] Renamed training folder to: {new_name}")
-            args.name = new_name  # Update so results.png opens correctly below
+            args.name = new_name
     except Exception as e:
         print(f"\n[WARNING] Could not automatically rename folder: {e}")
 
-    # Automatically open the training visualization graphs
+    # Open results visualization
     results_png = Path(args.project) / args.name / "results.png"
     if results_png.exists():
         print(f"\n[INFO] Opening training visualization: {results_png}")
         try:
-            import os
             os.startfile(results_png)
         except Exception as e:
             print(f"[WARNING] Could not auto-open results.png: {e}")
 
 
-
 def _run_kfold(args, dataset_root):
-    # 1. Gather all annotated images
+    # Gather all annotated images from train + val
     all_annotated_images = []
     for split in ["train", "val"]:
         labels_dir = dataset_root / "labels" / split
         images_dir = dataset_root / "images" / split
-        if not labels_dir.exists(): continue
+        if not labels_dir.exists():
+            continue
         for label_file in labels_dir.glob("*.txt"):
             if label_file.stat().st_size > 0:
                 for ext in [".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".webp"]:
@@ -285,50 +230,55 @@ def _run_kfold(args, dataset_root):
                     if img_path.exists():
                         all_annotated_images.append(str(img_path.absolute()).replace("\\", "/"))
                         break
-                        
+
     if not all_annotated_images:
         print("[ERROR] No annotated images found!")
         sys.exit(1)
-        
+
     random.seed(42)
     random.shuffle(all_annotated_images)
-    
+
     folds = args.kfold
     fold_size = len(all_annotated_images) // folds
     map50_scores = []
-    
-    with open(args.data, 'r') as f:
+
+    with open(args.data, "r") as f:
         base_data = yaml.safe_load(f)
-        
+
+    # Load shared hyperparameters
+    hyp = _load_training_config()
+
     for i in range(folds):
-        print(f"\n{'='*60}\n  STARTING FOLD {i+1}/{folds}\n{'='*60}")
+        print(f"\n{'=' * 60}\n  STARTING FOLD {i + 1}/{folds}\n{'=' * 60}")
         val_start = i * fold_size
         val_end = (i + 1) * fold_size if i < folds - 1 else len(all_annotated_images)
-        
+
         val_images = all_annotated_images[val_start:val_end]
         train_images = all_annotated_images[:val_start] + all_annotated_images[val_end:]
-        
-        # Pad to prevent BatchNorm crash if remainder is 1
-        if len(train_images) > 0 and (len(train_images) % args.batch == 1):
+
+        # Pad to prevent BatchNorm crash
+        if train_images and (len(train_images) % args.batch == 1):
             train_images.append(train_images[0])
-        
+
         train_txt = dataset_root / f"fold_{i}_train.txt"
         val_txt = dataset_root / f"fold_{i}_val.txt"
-        
-        with open(train_txt, 'w') as f:
-            for img in train_images: f.write(f"{img}\n")
-        with open(val_txt, 'w') as f:
-            for img in val_images: f.write(f"{img}\n")
-            
+
+        with open(train_txt, "w") as f:
+            for img in train_images:
+                f.write(f"{img}\n")
+        with open(val_txt, "w") as f:
+            for img in val_images:
+                f.write(f"{img}\n")
+
         fold_yaml_path = dataset_root / f"fold_{i}.yaml"
         fold_data = base_data.copy()
-        fold_data['train'] = str(train_txt)
-        fold_data['val'] = str(val_txt)
-        with open(fold_yaml_path, 'w') as f:
+        fold_data["train"] = str(train_txt)
+        fold_data["val"] = str(val_txt)
+        with open(fold_yaml_path, "w") as f:
             yaml.dump(fold_data, f)
-            
+
         fold_name = f"{args.name}_fold_{i}"
-        
+
         model = YOLO(args.model)
         model.train(
             data=str(fold_yaml_path),
@@ -339,49 +289,35 @@ def _run_kfold(args, dataset_root):
             project=args.project,
             name=fold_name,
             exist_ok=True,
-            optimizer="auto",
-            degrees=180.0,
-            fliplr=0.5,
-            flipud=0.5,
-            scale=0.2,
-            translate=0.1,
-            mosaic=1.0,
-            hsv_h=0.015,
-            hsv_s=0.2,
-            hsv_v=0.2,
-            mixup=0.1,
-            copy_paste=0.0,
-            workers=0,
-            max_det=1000,
-            close_mosaic=0,
-            multi_scale=True,
+            **hyp,
         )
-        
+
         best_weights = Path(args.project) / fold_name / "weights" / "best.pt"
         val_model = YOLO(str(best_weights))
         metrics = val_model.val(
-            data=str(fold_yaml_path), 
-            split="val", 
-            device=args.device, 
-            iou=0.5, 
-            agnostic_nms=True, 
+            data=str(fold_yaml_path),
+            split="val",
+            device=args.device,
+            iou=0.5,
+            agnostic_nms=True,
             max_det=1000,
             project=str(Path(args.project) / fold_name),
-            name="val_results"
+            name="val_results",
         )
-        
-        score = metrics.box.map50 if hasattr(metrics, 'box') else 0
+
+        score = metrics.box.map50 if hasattr(metrics, "box") else 0
         map50_scores.append(score)
-        print(f"[INFO] Fold {i+1} mAP50: {score:.4f}")
-        
-    print("\n" + "="*60)
+        print(f"[INFO] Fold {i + 1} mAP50: {score:.4f}")
+
+    print("\n" + "=" * 60)
     print("  K-FOLD CROSS VALIDATION COMPLETE")
     for i, s in enumerate(map50_scores):
-        print(f"  Fold {i+1}: {s:.4f}")
+        print(f"  Fold {i + 1}: {s:.4f}")
     if map50_scores:
         avg_score = sum(map50_scores) / len(map50_scores)
         print(f"  Average mAP50: {avg_score:.4f}")
-    print("="*60)
+    print("=" * 60)
+
 
 if __name__ == "__main__":
     main()

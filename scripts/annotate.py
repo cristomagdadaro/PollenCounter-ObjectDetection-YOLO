@@ -1,18 +1,7 @@
 #!/usr/bin/env python3
-"""
-annotate.py  Pollen Grain Bounding Box Annotation Tool
-=========================================================
+"""Pollen grain bounding box annotation tool.
 
-A local tkinter GUI for drawing bounding boxes on pollen microscopy
-images and saving the annotations in YOLO format.
-
-Features:
-   Click-and-drag to draw bounding boxes
-   Right-click a box to delete it
-   Navigate between images with Next/Previous or keyboard arrows
-   Auto-saves YOLO .txt label files to datasets/labels/train/
-   Shows box count and annotation progress
-   Supports splitting images into train/val sets
+A tkinter GUI for drawing YOLO-format bounding boxes on pollen microscopy images.
 
 Usage:
     python scripts/annotate.py
@@ -29,83 +18,28 @@ from pathlib import Path
 from tkinter import messagebox, ttk
 from typing import Optional
 
+# Ensure project root is on sys.path so 'from src...' works
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 from PIL import Image, ImageTk, ImageDraw
 
-# ─── Project paths ──────────────────────────────────────────────────
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_IMAGES = PROJECT_ROOT / "datasets" / "images" / "train"
-DEFAULT_LABELS = PROJECT_ROOT / "datasets" / "labels" / "train"
-VAL_IMAGES = PROJECT_ROOT / "datasets" / "images" / "val"
-VAL_LABELS = PROJECT_ROOT / "datasets" / "labels" / "val"
-EXCLUDED_IMAGES = PROJECT_ROOT / "datasets" / "images" / "excluded"
-EXCLUDED_LABELS = PROJECT_ROOT / "datasets" / "labels" / "excluded"
+from src.paths import (
+    PROJECT_ROOT, TRAIN_IMAGES, TRAIN_LABELS,
+    VAL_IMAGES, VAL_LABELS, EXCLUDED_IMAGES, EXCLUDED_LABELS, IMAGE_EXTS,
+)
+from src.bounding_box import BoundingBox
+from src.settings import load_settings, save_settings
+from src.theme import (
+    BOX_COLOR, BOX_COLOR_HOVER, ACTIVE_BOX_COLOR,
+    BG_COLOR, SIDEBAR_BG, ACCENT, TEXT_COLOR, PROGRESS_DONE, PROGRESS_TODO,
+)
 
-IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".webp"}
-
-# ─── Colours ────────────────────────────────────────────────────────
-BOX_COLOR = "#00AA00"
-BOX_COLOR_HOVER = "#FF0000"
-ACTIVE_BOX_COLOR = "#CCCC00"
-BG_COLOR = "#FFFFFF"
-SIDEBAR_BG = "#F0F0F0"
-ACCENT = "#0000FF"
-TEXT_COLOR = "#000000"
-PROGRESS_DONE = "#00AA00"
-PROGRESS_TODO = "#CCCCCC"
+# Aliases for backward compatibility within this file
+DEFAULT_IMAGES = TRAIN_IMAGES
+DEFAULT_LABELS = TRAIN_LABELS
 
 
-class BoundingBox:
-    """Represents a single YOLO-format bounding box."""
-
-    def __init__(self, x_center: float, y_center: float, w: float, h: float, class_id: int = 0, is_auto: bool = False):
-        self.x_center = x_center
-        self.y_center = y_center
-        self.w = w
-        self.h = h
-        self.class_id = class_id
-        self.is_auto = is_auto
-    def to_yolo_line(self) -> str:
-        return f"{self.class_id} {self.x_center:.6f} {self.y_center:.6f} {self.w:.6f} {self.h:.6f}"
-
-    @classmethod
-    def from_yolo_line(cls, line: str) -> Optional["BoundingBox"]:
-        parts = line.strip().split()
-        if len(parts) != 5:
-            return None
-        try:
-            cid, xc, yc, w, h = int(parts[0]), float(parts[1]), float(parts[2]), float(parts[3]), float(parts[4])
-            return cls(xc, yc, w, h, cid)
-        except ValueError:
-            return None
-
-    def to_pixel(self, img_w: int, img_h: int) -> tuple[int, int, int, int]:
-        """Convert normalised coords to pixel (x1, y1, x2, y2)."""
-        px = self.x_center * img_w
-        py = self.y_center * img_h
-        pw = self.w * img_w
-        ph = self.h * img_h
-        return (
-            int(px - pw / 2),
-            int(py - ph / 2),
-            int(px + pw / 2),
-            int(py + ph / 2),
-        )
-
-    def iou(self, other: "BoundingBox") -> float:
-        """Calculate Intersection over Union (IoU) with another box."""
-        x_left = max(self.x_center - self.w / 2, other.x_center - other.w / 2)
-        y_top = max(self.y_center - self.h / 2, other.y_center - other.h / 2)
-        x_right = min(self.x_center + self.w / 2, other.x_center + other.w / 2)
-        y_bottom = min(self.y_center + self.h / 2, other.y_center + other.h / 2)
-        
-        if x_right < x_left or y_bottom < y_top:
-            return 0.0
-            
-        intersection = (x_right - x_left) * (y_bottom - y_top)
-        area1 = self.w * self.h
-        area2 = other.w * other.h
-        
-        return intersection / (area1 + area2 - intersection)
+# BoundingBox is now imported from src.bounding_box
 
 
 class AnnotationApp:
@@ -1431,13 +1365,11 @@ class AnnotationApp:
     # ════════════════════════════════════════════════════════════════
 
     def _load_settings(self):
-        settings_path = PROJECT_ROOT / "config" / "inference_settings.json"
-        if not settings_path.exists(): return
+        """Restore UI control values from config/inference_settings.json."""
+        config = load_settings()
+        if not config:
+            return
         try:
-            import json
-            with open(settings_path, 'r') as f:
-                config = json.load(f)
-                
             if "model" in config and hasattr(self, 'model_combo'):
                 if config["model"] in self.model_combo['values']:
                     self.model_combo.set(config["model"])
@@ -1462,45 +1394,31 @@ class AnnotationApp:
             print(f"[WARNING] Failed to load UI settings: {e}")
 
     def _save_settings(self):
-        settings_path = PROJECT_ROOT / "config" / "inference_settings.json"
-        settings_path.parent.mkdir(exist_ok=True)
-        try:
-            import json
-            config = {}
-            if settings_path.exists():
-                try:
-                    with open(settings_path, 'r') as f:
-                        config = json.load(f)
-                except json.JSONDecodeError:
-                    pass
-            
-            if hasattr(self, 'model_combo'):
-                config["model"] = self.model_combo.get()
-            if hasattr(self, 'conf_entry'):
-                config["threshold"] = self.conf_entry.get()
-            if hasattr(self, 'opacity_var'):
-                try:
-                    config["opacity"] = float(self.opacity_var.get().replace(',', '.'))
-                except Exception: pass
-            if hasattr(self, 'entry_w'):
-                config["box_width"] = self.entry_w.get()
-            if hasattr(self, 'entry_h'):
-                config["box_height"] = self.entry_h.get()
-            if hasattr(self, 'thickness_var'):
-                try:
-                    config["thickness"] = int(self.thickness_var.get())
-                except Exception: pass
-            if hasattr(self, 'scale_var'):
-                try:
-                    config["scale"] = float(self.scale_var.get().replace(',', '.'))
-                except Exception: pass
-            if hasattr(self, 'show_compare'):
-                config["show_compare"] = self.show_compare.get()
-                
-            with open(settings_path, 'w') as f:
-                json.dump(config, f)
-        except Exception as e:
-            print(f"[WARNING] Failed to save UI settings: {e}")
+        """Persist all UI control values to config/inference_settings.json."""
+        updates = {}
+        if hasattr(self, 'model_combo'):
+            updates["model"] = self.model_combo.get()
+        if hasattr(self, 'conf_entry'):
+            updates["threshold"] = self.conf_entry.get()
+        if hasattr(self, 'opacity_var'):
+            try:
+                updates["opacity"] = float(self.opacity_var.get().replace(',', '.'))
+            except Exception: pass
+        if hasattr(self, 'entry_w'):
+            updates["box_width"] = self.entry_w.get()
+        if hasattr(self, 'entry_h'):
+            updates["box_height"] = self.entry_h.get()
+        if hasattr(self, 'thickness_var'):
+            try:
+                updates["thickness"] = int(self.thickness_var.get())
+            except Exception: pass
+        if hasattr(self, 'scale_var'):
+            try:
+                updates["scale"] = float(self.scale_var.get().replace(',', '.'))
+            except Exception: pass
+        if hasattr(self, 'show_compare'):
+            updates["show_compare"] = self.show_compare.get()
+        save_settings(updates)
 
     def _on_close(self):
         self._save_settings()
