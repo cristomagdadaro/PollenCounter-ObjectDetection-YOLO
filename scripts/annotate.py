@@ -392,6 +392,25 @@ class AnnotationApp:
         )
         self.discard_recount_btn.pack(side=tk.LEFT, padx=(4, 0))
 
+        # Smart Regional Recount Toggles
+        self.smart_recount_var = tk.BooleanVar(value=False)
+        self.force_recount_var = tk.BooleanVar(value=False)
+        
+        regional_frame = tk.Frame(sidebar, bg=SIDEBAR_BG)
+        regional_frame.pack(anchor=tk.W, padx=12, pady=(4, 2))
+        
+        tk.Checkbutton(
+            regional_frame, text="Smart Regional Recount", variable=self.smart_recount_var,
+            bg=SIDEBAR_BG, fg=TEXT_COLOR, selectcolor=BG_COLOR,
+            activebackground=SIDEBAR_BG, activeforeground=TEXT_COLOR, font=("Segoe UI", 9)
+        ).pack(anchor=tk.W)
+        
+        tk.Checkbutton(
+            regional_frame, text="Force Recount (Clear Area)", variable=self.force_recount_var,
+            bg=SIDEBAR_BG, fg=TEXT_COLOR, selectcolor=BG_COLOR,
+            activebackground=SIDEBAR_BG, activeforeground=TEXT_COLOR, font=("Segoe UI", 9)
+        ).pack(anchor=tk.W, padx=(16, 0))
+
         # ── Sidebar: Batch Tools ────────────────────────────────────
         tk.Frame(sidebar, bg="#CCCCCC", height=1).pack(fill=tk.X, padx=12, pady=8)
         
@@ -538,6 +557,48 @@ class AnnotationApp:
         self.root.bind("<equal>", lambda e: self._zoom_in())
         self.root.bind("<minus>", lambda e: self._zoom_out())
         self.root.bind("<space>", self._on_space)
+        self.root.bind("<Key>", self._on_key)
+
+    def _on_key(self, event):
+        # Ignore keyboard shortcuts if a text entry or combobox has focus
+        if isinstance(event.widget, (tk.Entry, ttk.Combobox)):
+            return
+            
+        char = event.char.lower()
+        if not char:
+            return
+            
+        if char == 'w':
+            self._fit_width()
+        elif char == 'h':
+            self._fit_height()
+        elif char == 'f':
+            self.view_mode.set("Full")
+            self._render_image()
+        elif char == '1':
+            self.view_mode.set("Q1")
+            self._render_image()
+        elif char == '2':
+            self.view_mode.set("Q2")
+            self._render_image()
+        elif char == '3':
+            self.view_mode.set("Q3")
+            self._render_image()
+        elif char == '4':
+            self.view_mode.set("Q4")
+            self._render_image()
+        elif char == 'r':
+            self.show_red.set(not self.show_red.get())
+            self._redraw_boxes()
+        elif char == 'o':
+            self.show_orange.set(not self.show_orange.get())
+            self._redraw_boxes()
+        elif char == 'y':
+            self.show_yellow.set(not self.show_yellow.get())
+            self._redraw_boxes()
+        elif char == 'g':
+            self.show_green.set(not self.show_green.get())
+            self._redraw_boxes()
 
     # ════════════════════════════════════════════════════════════════
     #  IMAGE LOADING
@@ -813,15 +874,18 @@ class AnnotationApp:
         if w <= 0 or h <= 0:
             return
 
-        box = BoundingBox(xc, yc, w, h, class_id=0)
-        if self.auto_snap.get():
-            self._snap_single_box(box)
-        self.boxes.append(box)
+        if getattr(self, 'smart_recount_var', None) and self.smart_recount_var.get():
+            self._regional_recount(nx1, ny1, nx2, ny2)
+        else:
+            box = BoundingBox(xc, yc, w, h, class_id=0)
+            if self.auto_snap.get():
+                self._snap_single_box(box)
+            self.boxes.append(box)
+            self.status.config(text=f" Box added  total: {len(self.boxes)}")
 
         self._redraw_boxes()
         self._save_labels()
         self._update_ui()
-        self.status.config(text=f" Box added  total: {len(self.boxes)}")
 
     def _on_right_click(self, event):
         """Delete the box closest to the right-click position."""
@@ -1377,6 +1441,107 @@ class AnnotationApp:
             self._save_labels()
             self._update_ui()
             self.status.config(text=f" Discarded {removed} auto-recounted boxes.")
+
+    def _regional_recount(self, nx1, ny1, nx2, ny2):
+        """Run YOLO only in the region [nx1, nx2] x [ny1, ny2] using full-image inference."""
+        if not hasattr(self, 'orig_pil_img') or not self.orig_pil_img or not self.image_paths: return
+
+        force = self.force_recount_var.get()
+        if force:
+            # Delete existing boxes whose centers fall inside this region
+            kept_boxes = []
+            removed = 0
+            for box in self.boxes:
+                if nx1 <= box.x_center <= nx2 and ny1 <= box.y_center <= ny2:
+                    removed += 1
+                else:
+                    kept_boxes.append(box)
+            self.boxes = kept_boxes
+            if removed > 0:
+                self.status.config(text=f" Removed {removed} old boxes.")
+                self.root.update()
+
+        try:
+            conf_val = float(self.conf_entry.get())
+        except ValueError:
+            messagebox.showerror("Error", "Invalid confidence value")
+            return
+            
+        selected_model = getattr(self, 'model_combo', None)
+        if selected_model:
+            selected_model = selected_model.get()
+        else:
+            selected_model = "None"
+
+        if selected_model == "None":
+            messagebox.showerror("Error", "No model selected.")
+            return
+
+        if self.yolo_model is not None and getattr(self, 'loaded_model_name', None) != selected_model:
+            self.yolo_model = None
+
+        if self.yolo_model is None:
+            self.status.config(text=f" Loading YOLO model: {selected_model}...")
+            self.root.update()
+            try:
+                from ultralytics import YOLO
+                model_path = PROJECT_ROOT / "runs" / "detect" / selected_model / "weights" / "best.pt"
+                if not model_path.exists():
+                    messagebox.showerror("Error", f"Could not find a trained best.pt model in {model_path}!")
+                    self.status.config(text=" Model load failed")
+                    return
+                self.yolo_model = YOLO(model_path)
+                self.loaded_model_name = selected_model
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to load YOLO: {e}")
+                self.status.config(text=" Model load failed")
+                return
+
+        self.status.config(text=f" Running regional inference...")
+        self.root.update()
+        
+        img_path = str(self.image_paths[self.current_idx])
+        results = self.yolo_model.predict(
+            source=img_path,
+            conf=conf_val,
+            iou=0.45,
+            imgsz=1024,
+            max_det=5000,
+            device="0",
+            verbose=False
+        )
+        
+        if not results: return
+        boxes_data = results[0].boxes
+        if not boxes_data:
+            return
+            
+        new_count = 0
+        for box_data in boxes_data:
+            xywhn = box_data.xywhn[0].cpu().numpy()
+            xc, yc, w, h = xywhn
+            
+            # Check if this AI box center is inside the drawn region
+            if not (nx1 <= xc <= nx2 and ny1 <= yc <= ny2):
+                continue
+            
+            new_box = BoundingBox(float(xc), float(yc), float(w), float(h), class_id=0, is_auto=True)
+            
+            # Check overlap against all existing boxes
+            is_overlap = False
+            for exist_box in self.boxes:
+                if exist_box.iou(new_box) > 0.25:
+                    is_overlap = True
+                    break
+                    
+            if not is_overlap:
+                if getattr(self, 'auto_snap', None) and self.auto_snap.get():
+                    self._snap_single_box(new_box)
+                self.boxes.append(new_box)
+                new_count += 1
+                
+        self.status.config(text=f" Regional recount: Added {new_count} pollen grains.")
+
 
     def _auto_recount(self):
         """Lazy load YOLO, run inference, and add non-overlapping boxes."""
@@ -1940,6 +2105,10 @@ class AnnotationApp:
                 self.scale_var.set(str(config["scale"]))
             if "show_compare" in config and hasattr(self, 'show_compare'):
                 self.show_compare.set(config["show_compare"])
+            if "smart_recount" in config and hasattr(self, 'smart_recount_var'):
+                self.smart_recount_var.set(config["smart_recount"])
+            if "force_recount" in config and hasattr(self, 'force_recount_var'):
+                self.force_recount_var.set(config["force_recount"])
                 
             if "current_image" in config and getattr(self, 'image_paths', None):
                 target = config["current_image"]
@@ -1976,6 +2145,10 @@ class AnnotationApp:
             except Exception: pass
         if hasattr(self, 'show_compare'):
             updates["show_compare"] = self.show_compare.get()
+        if hasattr(self, 'smart_recount_var'):
+            updates["smart_recount"] = self.smart_recount_var.get()
+        if hasattr(self, 'force_recount_var'):
+            updates["force_recount"] = self.force_recount_var.get()
         if hasattr(self, 'image_paths') and hasattr(self, 'current_idx') and self.image_paths and self.current_idx < len(self.image_paths):
             updates["current_image"] = self.image_paths[self.current_idx].name
         save_settings(updates)
