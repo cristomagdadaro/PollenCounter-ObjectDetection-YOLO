@@ -1389,19 +1389,17 @@ class AnnotationApp:
                 if best_contour is None:
                     return False
                     
-                # Center the pollen by calculation using moments
-                M = cv2.moments(best_contour)
-                if M["m00"] != 0:
-                    center_x = rx1 + M["m10"] / M["m00"]
-                    center_y = ry1 + M["m01"] / M["m00"]
-                else:
-                    cx, cy, cw, ch = cv2.boundingRect(best_contour)
-                    center_x = rx1 + cx + cw / 2.0
-                    center_y = ry1 + cy + ch / 2.0
+                cx, cy, cw, ch = cv2.boundingRect(best_contour)
+                pad_w, pad_h = int(cw * 0.08), int(ch * 0.08)
+                new_x1 = max(0, rx1 + cx - pad_w)
+                new_y1 = max(0, ry1 + cy - pad_h)
+                new_x2 = min(img_w, rx1 + cx + cw + pad_w)
+                new_y2 = min(img_h, ry1 + cy + ch + pad_h)
                 
-                # Only shift the center, do not resize the bounding box
-                box.x_center = center_x / img_w
-                box.y_center = center_y / img_h
+                box.w = (new_x2 - new_x1) / img_w
+                box.h = (new_y2 - new_y1) / img_h
+                box.x_center = (new_x1 + new_x2) / 2.0 / img_w
+                box.y_center = (new_y1 + new_y2) / 2.0 / img_h
                 return True
         except Exception:
             pass
@@ -1529,6 +1527,7 @@ class AnnotationApp:
             source=roi,
             conf=conf_val,
             iou=0.45,
+            agnostic_nms=True,
             imgsz=1024,
             max_det=5000,
             device="0",
@@ -1631,6 +1630,7 @@ class AnnotationApp:
             source=img_path,
             conf=conf_val,
             iou=0.45,
+            agnostic_nms=True,
             imgsz=1024,
             max_det=5000,
             device="0", # Keep it on GPU for speed

@@ -76,7 +76,7 @@ def run_inference(
         img_h, img_w = img.shape[:2]
 
         results = model.predict(
-            source=str(img_path), conf=conf, iou=0.5,
+            source=str(img_path), conf=conf, iou=0.5, agnostic_nms=True,
             imgsz=imgsz, device=device, max_det=5000, verbose=False,
         )
         boxes = results[0].boxes
