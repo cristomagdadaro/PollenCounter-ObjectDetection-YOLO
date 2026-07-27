@@ -177,8 +177,9 @@ def _run_standard_training(args, data_path):
 
     # ── Auto-rename folder: i{N}_{trainCount}T_{valCount}V_{MODEL}_{P}P_{R}R_{mAP50}A
     try:
-        train_txt = Path(data_path).parent / "train.txt"
-        val_txt = Path(data_path).parent / "val.txt"
+        dataset_root = Path(__file__).parent.parent / "datasets"
+        train_txt = dataset_root / "train.txt"
+        val_txt = dataset_root / "val.txt"
         train_count = sum(1 for _ in open(train_txt)) if train_txt.exists() else 0
         val_count = sum(1 for _ in open(val_txt)) if val_txt.exists() else 0
 
