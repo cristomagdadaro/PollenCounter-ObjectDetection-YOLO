@@ -1535,8 +1535,6 @@ class AnnotationApp:
                     break
                     
             if not is_overlap:
-                if getattr(self, 'auto_snap', None) and self.auto_snap.get():
-                    self._snap_single_box(new_box)
                 self.boxes.append(new_box)
                 new_count += 1
                 
@@ -1625,7 +1623,6 @@ class AnnotationApp:
                     break
                     
             if not is_overlap:
-                self._snap_single_box(new_box)
                 self.boxes.append(new_box)
                 new_count += 1
                 
