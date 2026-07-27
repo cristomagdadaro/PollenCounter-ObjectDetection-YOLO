@@ -221,6 +221,18 @@ class AnnotationApp:
         self.thickness_entry.bind("<Return>", lambda e: self.canvas.focus_set())
         self.thickness_entry.bind("<Escape>", lambda e: self.canvas.focus_set())
 
+        # 5. Fit Options
+        tk.Button(header_controls, text="Fit W", font=("Segoe UI", 8, "bold"), bg="#4B5563", fg="white", bd=0, cursor="hand2", padx=4, command=self._fit_width).pack(side=tk.LEFT, padx=(10, 2))
+        tk.Button(header_controls, text="Fit H", font=("Segoe UI", 8, "bold"), bg="#4B5563", fg="white", bd=0, cursor="hand2", padx=4, command=self._fit_height).pack(side=tk.LEFT, padx=2)
+
+        # 6. Auto-Snap Checkbox
+        self.auto_snap = tk.BooleanVar(value=True)
+        tk.Checkbutton(
+            header_controls, text="Auto-Snap", variable=self.auto_snap,
+            bg=ACCENT, fg="white", selectcolor=BG_COLOR,
+            activebackground=ACCENT, activeforeground="white"
+        ).pack(side=tk.LEFT, padx=(10, 2))
+
         self.progress_label = tk.Label(
             top, text="", font=("Segoe UI", 11), bg=ACCENT, fg="#FFFFFF"
         )
@@ -332,6 +344,15 @@ class AnnotationApp:
             activebackground="#DC2626", command=self._discard_recount, font=("Segoe UI", 9, "bold"), bd=0, cursor="hand2", padx=6, pady=2
         )
         self.discard_recount_btn.pack(side=tk.LEFT, padx=(4, 0))
+
+        # ── Sidebar: Batch Tools ────────────────────────────────────
+        tk.Frame(sidebar, bg="#CCCCCC", height=1).pack(fill=tk.X, padx=12, pady=8)
+        
+        tk.Button(
+            sidebar, text="⚙ Batch Tools", font=("Segoe UI", 10, "bold"),
+            bg="#2563EB", fg="white", activebackground="#1D4ED8",
+            bd=0, cursor="hand2", pady=4, command=self._open_batch_tools
+        ).pack(fill=tk.X, padx=12, pady=(0, 4))
 
         # Determine available models for dropdown
         available_models = []
@@ -564,6 +585,26 @@ class AnnotationApp:
     def _zoom_out(self):
         self.zoom_level = max(self.zoom_level / 1.25, 0.2)
         self._render_image()
+        
+    def _fit_width(self):
+        if not self.pil_img: return
+        canvas_w = max(self.canvas.winfo_width(), 400)
+        canvas_h = max(self.canvas.winfo_height(), 400)
+        scale_w = canvas_w / self.orig_w
+        scale_h = canvas_h / self.orig_h
+        base_scale = min(scale_w, scale_h, 1.0)
+        self.zoom_level = scale_w / base_scale
+        self._render_image()
+
+    def _fit_height(self):
+        if not self.pil_img: return
+        canvas_w = max(self.canvas.winfo_width(), 400)
+        canvas_h = max(self.canvas.winfo_height(), 400)
+        scale_w = canvas_w / self.orig_w
+        scale_h = canvas_h / self.orig_h
+        base_scale = min(scale_w, scale_h, 1.0)
+        self.zoom_level = scale_h / base_scale
+        self._render_image()
 
     def _on_mousewheel(self, event):
         if event.delta > 0:
@@ -654,7 +695,8 @@ class AnnotationApp:
             return
 
         box = BoundingBox(xc, yc, w, h, class_id=0)
-        self._snap_single_box(box)
+        if self.auto_snap.get():
+            self._snap_single_box(box)
         self.boxes.append(box)
 
         self._redraw_boxes()
@@ -715,7 +757,8 @@ class AnnotationApp:
         ny = max(self.default_h / 2, min(1.0 - self.default_h / 2, ny))
         
         box = BoundingBox(nx, ny, self.default_w, self.default_h, class_id=0)
-        self._snap_single_box(box)
+        if self.auto_snap.get():
+            self._snap_single_box(box)
         self.boxes.append(box)
         
         self._redraw_boxes()
@@ -1119,6 +1162,171 @@ class AnnotationApp:
         self._save_labels()
         self._update_ui()
         self.status.config(text=f" Auto-recount: Added {new_count} missing pollen grains.")
+
+    def _open_batch_tools(self):
+        batch_win = tk.Toplevel(self.root)
+        batch_win.title("Batch Tools")
+        batch_win.geometry("450x300")
+        batch_win.configure(bg=BG_COLOR)
+        batch_win.transient(self.root)
+        batch_win.grab_set()
+
+        tk.Label(batch_win, text="Batch Edit", font=("Segoe UI", 14, "bold"), bg=BG_COLOR, fg=ACCENT).pack(pady=10)
+
+        # Target Selection
+        target_frame = tk.LabelFrame(batch_win, text="Target Scope", bg=BG_COLOR, font=("Segoe UI", 10, "bold"), fg=TEXT_COLOR)
+        target_frame.pack(fill=tk.X, padx=15, pady=5)
+        
+        target_var = tk.StringVar(value="dataset")
+        tk.Radiobutton(target_frame, text="Current Dataset (e.g., all Train)", variable=target_var, value="dataset", bg=BG_COLOR, fg=TEXT_COLOR, selectcolor=SIDEBAR_BG).pack(anchor=tk.W, padx=5, pady=2)
+        tk.Radiobutton(target_frame, text="All Datasets (Train + Val + Excluded)", variable=target_var, value="all", bg=BG_COLOR, fg=TEXT_COLOR, selectcolor=SIDEBAR_BG).pack(anchor=tk.W, padx=5, pady=2)
+
+        # Operations
+        ops_frame = tk.LabelFrame(batch_win, text="Operations", bg=BG_COLOR, font=("Segoe UI", 10, "bold"), fg=TEXT_COLOR)
+        ops_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=5)
+
+        # Scale
+        scale_frame = tk.Frame(ops_frame, bg=BG_COLOR)
+        scale_frame.pack(fill=tk.X, padx=5, pady=5)
+        tk.Label(scale_frame, text="Scale Factor:", bg=BG_COLOR, fg=TEXT_COLOR).pack(side=tk.LEFT)
+        scale_entry = tk.Entry(scale_frame, width=8, font=("Consolas", 10))
+        scale_entry.insert(0, "1.1")
+        scale_entry.pack(side=tk.LEFT, padx=5)
+        tk.Button(scale_frame, text="Apply Scale", bg=ACCENT, fg="white", bd=0, cursor="hand2", command=lambda: self._run_batch("scale", target_var.get(), scale_entry.get(), batch_win)).pack(side=tk.RIGHT)
+        
+        # Snap
+        snap_frame = tk.Frame(ops_frame, bg=BG_COLOR)
+        snap_frame.pack(fill=tk.X, padx=5, pady=5)
+        tk.Label(snap_frame, text="Snap all boxes to edges:", bg=BG_COLOR, fg=TEXT_COLOR).pack(side=tk.LEFT)
+        tk.Button(snap_frame, text="Auto-Snap All", bg="#8B5CF6", fg="white", bd=0, cursor="hand2", command=lambda: self._run_batch("snap", target_var.get(), None, batch_win)).pack(side=tk.RIGHT)
+        
+        # Clear
+        clear_frame = tk.Frame(ops_frame, bg=BG_COLOR)
+        clear_frame.pack(fill=tk.X, padx=5, pady=5)
+        tk.Label(clear_frame, text="Clear all boxes from images:", bg=BG_COLOR, fg=TEXT_COLOR).pack(side=tk.LEFT)
+        tk.Button(clear_frame, text="Clear All", bg="#EF4444", fg="white", bd=0, cursor="hand2", command=lambda: self._run_batch("clear", target_var.get(), None, batch_win)).pack(side=tk.RIGHT)
+
+    def _run_batch(self, op, target, param, parent_win):
+        # Gather labels
+        targets = []
+        if target == "dataset":
+            targets = [p for p in self.labels_dir.glob("*.txt") if p.is_file()]
+        else:
+            for d in [TRAIN_LABELS, VAL_LABELS, EXCLUDED_LABELS]:
+                if d.exists():
+                    targets.extend([p for p in d.glob("*.txt") if p.is_file()])
+                    
+        if not targets:
+            messagebox.showinfo("Info", "No label files found to process.", parent=parent_win)
+            return
+            
+        scale_factor = 1.0
+        if op == "scale":
+            try:
+                scale_factor = float(param.replace(',', '.'))
+                if scale_factor <= 0: raise ValueError
+            except ValueError:
+                messagebox.showerror("Error", "Invalid scale factor.", parent=parent_win)
+                return
+
+        if not messagebox.askyesno("Confirm", f"Are you sure you want to {op} on {len(targets)} files?\nThis cannot be undone easily.", parent=parent_win):
+            return
+            
+        pb_var = tk.DoubleVar()
+        pb = ttk.Progressbar(parent_win, variable=pb_var, maximum=len(targets))
+        pb.pack(fill=tk.X, padx=15, pady=10)
+        parent_win.update()
+
+        affected = 0
+        import cv2 # import locally to avoid cluttering global namespace if not needed
+        for i, txt_path in enumerate(targets):
+            if op == "clear":
+                txt_path.unlink()
+                affected += 1
+            elif op == "scale" or op == "snap":
+                with open(txt_path, "r") as f:
+                    lines = f.readlines()
+                    
+                new_lines = []
+                img_bgr = None
+                img_h, img_w = 0, 0
+                
+                if op == "snap":
+                    # find the corresponding image
+                    labels_folder = txt_path.parent
+                    images_folder = labels_folder.parent.parent / "images" / labels_folder.name
+                    img_path = None
+                    for ext in IMAGE_EXTS:
+                        possible = images_folder / f"{txt_path.stem}{ext}"
+                        if possible.exists():
+                            img_path = possible
+                            break
+                    if img_path:
+                        img_bgr = cv2.imread(str(img_path))
+                        if img_bgr is not None:
+                            img_h, img_w = img_bgr.shape[:2]
+                
+                changed_this_file = False
+                for line in lines:
+                    box = BoundingBox.from_yolo_line(line)
+                    if box:
+                        if op == "scale":
+                            box.w *= scale_factor
+                            box.h *= scale_factor
+                            changed_this_file = True
+                        elif op == "snap" and img_bgr is not None:
+                            # Use logic similar to _snap_single_box
+                            x1 = int((box.x_center - box.w / 2) * img_w)
+                            y1 = int((box.y_center - box.h / 2) * img_h)
+                            x2 = int((box.x_center + box.w / 2) * img_w)
+                            y2 = int((box.y_center + box.h / 2) * img_h)
+                            
+                            pad_x = int((x2 - x1) * 0.3)
+                            pad_y = int((y2 - y1) * 0.3)
+                            
+                            rx1, ry1 = max(0, x1 - pad_x), max(0, y1 - pad_y)
+                            rx2, ry2 = min(img_w, x2 + pad_x), min(img_h, y2 + pad_y)
+                            
+                            if rx2 > rx1 and ry2 > ry1:
+                                roi = img_bgr[ry1:ry2, rx1:rx2]
+                                try:
+                                    gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+                                    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+                                    _, thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+                                    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                                    if contours:
+                                        largest = max(contours, key=cv2.contourArea)
+                                        cx, cy, cw, ch = cv2.boundingRect(largest)
+                                        pad_w, pad_h = int(cw * 0.08), int(ch * 0.08)
+                                        new_x1 = max(0, rx1 + cx - pad_w)
+                                        new_y1 = max(0, ry1 + cy - pad_h)
+                                        new_x2 = min(img_w, rx1 + cx + cw + pad_w)
+                                        new_y2 = min(img_h, ry1 + cy + ch + pad_h)
+                                        box.w = (new_x2 - new_x1) / img_w
+                                        box.h = (new_y2 - new_y1) / img_h
+                                        box.x_center = (new_x1 + new_x2) / 2.0 / img_w
+                                        box.y_center = (new_y1 + new_y2) / 2.0 / img_h
+                                        changed_this_file = True
+                                except Exception:
+                                    pass
+                                    
+                        new_lines.append(box.to_yolo_line() + "\n")
+                        
+                if new_lines and changed_this_file:
+                    with open(txt_path, "w") as f:
+                        f.writelines(new_lines)
+                    affected += 1
+                elif not new_lines and op == "scale": # only delete if scaling
+                    txt_path.unlink()
+            
+            pb_var.set(i + 1)
+            if i % 10 == 0:
+                parent_win.update()
+            
+        pb.destroy()
+        messagebox.showinfo("Done", f"Processed {affected} files successfully.", parent=parent_win)
+        self._load_image()  # Refresh the canvas to show changes
+        parent_win.destroy()
 
     def _clean_duplicates(self):
         """Remove boxes that overlap by more than 80% with another box."""
