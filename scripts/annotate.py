@@ -425,10 +425,31 @@ class AnnotationApp:
         self.model_combo.set(available_models[0])
         self.model_combo.pack(anchor=tk.W, padx=12, pady=(0, 12))
 
-
-
-
-
+        # ── Sidebar: Viewport ────────────────────────────────────────
+        tk.Label(
+            sidebar, text="Quadrant View", font=("Segoe UI", 11, "bold"),
+            bg=SIDEBAR_BG, fg=ACCENT
+        ).pack(anchor=tk.W, padx=12, pady=(4, 2))
+        
+        self.view_mode = tk.StringVar(value="Full")
+        view_frame = tk.Frame(sidebar, bg=SIDEBAR_BG)
+        view_frame.pack(fill=tk.X, padx=12, pady=4)
+        
+        btn_opts = {"font": ("Segoe UI", 9, "bold"), "cursor": "hand2", "bd": 0, "pady": 4}
+        def set_view(m):
+            self.view_mode.set(m)
+            self._render_image()
+            
+        self.btn_full = tk.Button(view_frame, text="Full", bg=ACCENT, fg="white", activebackground="#6D28D9", command=lambda: set_view("Full"), **btn_opts)
+        self.btn_full.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=1)
+        self.btn_q1 = tk.Button(view_frame, text="Q1", bg="#888888", fg="white", activebackground="#666666", command=lambda: set_view("Q1"), **btn_opts)
+        self.btn_q1.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=1)
+        self.btn_q2 = tk.Button(view_frame, text="Q2", bg="#888888", fg="white", activebackground="#666666", command=lambda: set_view("Q2"), **btn_opts)
+        self.btn_q2.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=1)
+        self.btn_q3 = tk.Button(view_frame, text="Q3", bg="#888888", fg="white", activebackground="#666666", command=lambda: set_view("Q3"), **btn_opts)
+        self.btn_q3.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=1)
+        self.btn_q4 = tk.Button(view_frame, text="Q4", bg="#888888", fg="white", activebackground="#666666", command=lambda: set_view("Q4"), **btn_opts)
+        self.btn_q4.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=1)
 
         # ── Sidebar: buttons ────────────────────────────────────────
         tk.Frame(sidebar, bg="#CCCCCC", height=1).pack(fill=tk.X, padx=12, pady=12)
@@ -530,8 +551,13 @@ class AnnotationApp:
         path = self.image_paths[self.current_idx]
 
         # Load with PIL
-        self.pil_img = Image.open(path)
-        self.orig_w, self.orig_h = self.pil_img.size
+        self.orig_pil_img = Image.open(path)
+        self.full_w, self.full_h = self.orig_pil_img.size
+        
+        self.view_x_offset = 0.0
+        self.view_y_offset = 0.0
+        self.view_w_scale = 1.0
+        self.view_h_scale = 1.0
         self.zoom_level = 1.0
 
         # ── Load existing labels ────────────────────────────────────
@@ -560,32 +586,79 @@ class AnnotationApp:
         self._update_ui()
         
     def _update_size_entries(self):
-        if not self.orig_w or not self.orig_h: return
-        w_px = int(self.default_w * self.orig_w)
-        h_px = int(self.default_h * self.orig_h)
+        if not hasattr(self, 'full_w') or not self.full_w: return
+        w_px = int(self.default_w * self.full_w)
+        h_px = int(self.default_h * self.full_h)
         self.entry_w.delete(0, tk.END)
         self.entry_w.insert(0, str(w_px))
         self.entry_h.delete(0, tk.END)
         self.entry_h.insert(0, str(h_px))
 
     def _update_auto_size(self, event=None):
-        if not self.orig_w or not self.orig_h: return
+        if not hasattr(self, 'full_w') or not self.full_w: return
         try:
             w_px = float(self.entry_w.get())
             h_px = float(self.entry_h.get())
             if w_px > 0 and h_px > 0:
-                self.default_w = w_px / self.orig_w
-                self.default_h = h_px / self.orig_h
+                self.default_w = w_px / self.full_w
+                self.default_h = h_px / self.full_h
         except ValueError:
             pass # Invalid input, ignore until valid
         
     def _render_image(self):
         """Scale and display the image on the canvas."""
-        if not self.pil_img:
+        if not hasattr(self, 'orig_pil_img') or not self.orig_pil_img:
             return
 
         self.canvas.delete("all")
         self.canvas_ids.clear()
+        
+        # Determine viewport
+        mode = getattr(self, 'view_mode', None)
+        mode_val = mode.get() if mode else "Full"
+        
+        # Update UI colors for buttons
+        if hasattr(self, 'btn_full'):
+            for b, m in [(self.btn_full, "Full"), (self.btn_q1, "Q1"), (self.btn_q2, "Q2"), (self.btn_q3, "Q3"), (self.btn_q4, "Q4")]:
+                if mode_val == m:
+                    b.config(bg=ACCENT, activebackground="#6D28D9")
+                else:
+                    b.config(bg="#888888", activebackground="#666666")
+        
+        fw, fh = self.full_w, self.full_h
+        if mode_val == "Q1":
+            self.view_x_offset = 0.0
+            self.view_y_offset = 0.0
+            self.view_w_scale = 0.5
+            self.view_h_scale = 0.5
+            crop_box = (0, 0, fw//2, fh//2)
+        elif mode_val == "Q2":
+            self.view_x_offset = 0.5
+            self.view_y_offset = 0.0
+            self.view_w_scale = 0.5
+            self.view_h_scale = 0.5
+            crop_box = (fw//2, 0, fw, fh//2)
+        elif mode_val == "Q3":
+            self.view_x_offset = 0.0
+            self.view_y_offset = 0.5
+            self.view_w_scale = 0.5
+            self.view_h_scale = 0.5
+            crop_box = (0, fh//2, fw//2, fh)
+        elif mode_val == "Q4":
+            self.view_x_offset = 0.5
+            self.view_y_offset = 0.5
+            self.view_w_scale = 0.5
+            self.view_h_scale = 0.5
+            crop_box = (fw//2, fh//2, fw, fh)
+        else: # Full
+            self.view_x_offset = 0.0
+            self.view_y_offset = 0.0
+            self.view_w_scale = 1.0
+            self.view_h_scale = 1.0
+            crop_box = (0, 0, fw, fh)
+            
+        self.pil_img = self.orig_pil_img.crop(crop_box)
+        self.orig_w, self.orig_h = self.pil_img.size
 
         # Calculate scale to fit canvas
         canvas_w = max(self.canvas.winfo_width(), 400)
@@ -667,12 +740,21 @@ class AnnotationApp:
         """Canvas pixel → normalised image coordinates."""
         ix = (cx - self.img_offset_x) / self.display_scale
         iy = (cy - self.img_offset_y) / self.display_scale
-        return ix / self.orig_w, iy / self.orig_h
+        local_nx = ix / self.orig_w
+        local_ny = iy / self.orig_h
+        if hasattr(self, 'view_w_scale'):
+            return (local_nx * self.view_w_scale) + self.view_x_offset, (local_ny * self.view_h_scale) + self.view_y_offset
+        return local_nx, local_ny
 
     def _norm_to_canvas(self, nx: float, ny: float) -> tuple[int, int]:
         """Normalised image coords → canvas pixel."""
-        ix = nx * self.orig_w * self.display_scale
-        iy = ny * self.orig_h * self.display_scale
+        if hasattr(self, 'view_w_scale'):
+            local_nx = (nx - self.view_x_offset) / self.view_w_scale
+            local_ny = (ny - self.view_y_offset) / self.view_h_scale
+        else:
+            local_nx, local_ny = nx, ny
+        ix = local_nx * self.orig_w * self.display_scale
+        iy = local_ny * self.orig_h * self.display_scale
         return int(ix + self.img_offset_x), int(iy + self.img_offset_y)
 
     # ════════════════════════════════════════════════════════════════
@@ -952,6 +1034,20 @@ class AnnotationApp:
                 self.chk_green.config(text="Grn (0)")
             
         for i, box in enumerate(self.boxes):
+            x1_n = box.x_center - box.w / 2
+            y1_n = box.y_center - box.h / 2
+            x2_n = box.x_center + box.w / 2
+            y2_n = box.y_center + box.h / 2
+            
+            # Check viewport intersection
+            if hasattr(self, 'view_x_offset'):
+                vw_x2 = self.view_x_offset + self.view_w_scale
+                vw_y2 = self.view_y_offset + self.view_h_scale
+                if x2_n < self.view_x_offset or x1_n > vw_x2 or y2_n < self.view_y_offset or y1_n > vw_y2:
+                    box_colors.append(None)
+                    box_color_strs.append(None)
+                    continue
+
             is_massive = box.w > 0.5 or box.h > 0.5
             if is_massive:
                 if hasattr(self, 'show_red') and not self.show_red.get():
@@ -1087,7 +1183,7 @@ class AnnotationApp:
 
     def _export_jpg(self):
         """Export the current image and boxes to a JPG file."""
-        if not self.pil_img or not self.image_paths:
+        if not hasattr(self, 'orig_pil_img') or not self.orig_pil_img or not self.image_paths:
             return
             
         path = self.image_paths[self.current_idx]
@@ -1112,11 +1208,14 @@ class AnnotationApp:
         out_dir = out_path.parent
         out_dir.mkdir(parents=True, exist_ok=True)
         
-        export_img = self.pil_img.copy().convert("RGBA")
+        export_img = self.orig_pil_img.copy().convert("RGBA")
         overlay = Image.new("RGBA", export_img.size, (0,0,0,0))
         draw = ImageDraw.Draw(overlay, "RGBA")
         
-        opacity = int(self.opacity_var.get() * 255)
+        try:
+            opacity = int(float(self.opacity_var.get().replace(',', '.')) * 255)
+        except Exception:
+            opacity = 50
         
         for i, box in enumerate(self.boxes):
             x1_n = box.x_center - box.w / 2
@@ -1124,10 +1223,10 @@ class AnnotationApp:
             x2_n = box.x_center + box.w / 2
             y2_n = box.y_center + box.h / 2
             
-            x1 = x1_n * self.orig_w
-            y1 = y1_n * self.orig_h
-            x2 = x2_n * self.orig_w
-            y2 = y2_n * self.orig_h
+            x1 = x1_n * self.full_w
+            y1 = y1_n * self.full_h
+            x2 = x2_n * self.full_w
+            y2 = y2_n * self.full_h
             
             is_massive = box.w > 0.5 or box.h > 0.5
             
@@ -1166,11 +1265,11 @@ class AnnotationApp:
         self.status.config(text=f" Exported JPG to {out_path.name}")
 
     def _snap_single_box(self, box, img_bgr=None):
-        if not self.pil_img: return False
+        if not hasattr(self, 'orig_pil_img') or not self.orig_pil_img: return False
         import cv2, numpy as np
         if img_bgr is None:
             try:
-                img_bgr = cv2.cvtColor(np.array(self.pil_img), cv2.COLOR_RGB2BGR)
+                img_bgr = cv2.cvtColor(np.array(self.orig_pil_img), cv2.COLOR_RGB2BGR)
             except Exception:
                 return False
             
@@ -1240,12 +1339,12 @@ class AnnotationApp:
 
     def _snap_boxes(self):
         """Recompute bounding boxes to snap perfectly to pollen edges using OpenCV."""
-        if not self.pil_img or not self.boxes: return
+        if not hasattr(self, 'orig_pil_img') or not self.boxes: return
         import cv2, numpy as np
         import concurrent.futures
         
         try:
-            img_bgr = cv2.cvtColor(np.array(self.pil_img), cv2.COLOR_RGB2BGR)
+            img_bgr = cv2.cvtColor(np.array(self.orig_pil_img), cv2.COLOR_RGB2BGR)
         except Exception:
             return
             
@@ -1275,7 +1374,7 @@ class AnnotationApp:
 
     def _auto_recount(self):
         """Lazy load YOLO, run inference, and add non-overlapping boxes."""
-        if not self.pil_img or not self.image_paths: return
+        if not hasattr(self, 'orig_pil_img') or not self.orig_pil_img or not self.image_paths: return
         
         try:
             conf_val = float(self.conf_entry.get())
