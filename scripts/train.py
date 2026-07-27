@@ -193,7 +193,7 @@ def _run_standard_training(args, data_path):
             p, r, map50 = 0, 0, 0
 
         detect_dir = Path(args.project)
-        iteration = len([d for d in detect_dir.iterdir() if d.is_dir()])
+        iteration = len([d for d in detect_dir.iterdir() if d.is_dir() and d.name.startswith("i")]) + 1
 
         new_name = f"i{iteration}_{train_count}T_{val_count}V_{model_name}_{p}P_{r}R_{map50}A"
         old_dir = detect_dir / args.name
