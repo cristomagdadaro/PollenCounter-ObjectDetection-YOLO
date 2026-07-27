@@ -231,7 +231,7 @@ class AnnotationApp:
         self.auto_snap = tk.BooleanVar(value=True)
         tk.Checkbutton(
             header_controls, text="Auto-Snap", variable=self.auto_snap,
-            bg=ACCENT, fg="white", selectcolor="#FFFFFF",
+            bg=ACCENT, fg="white", selectcolor=ACCENT,
             activebackground=ACCENT, activeforeground="white"
         ).pack(side=tk.LEFT, padx=(10, 2))
 
@@ -1294,8 +1294,8 @@ class AnnotationApp:
             _, thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
             
             # Apply morphological opening to disconnect slightly touching grains
-            kernel = np.ones((3, 3), np.uint8)
-            thresh = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel, iterations=1)
+            kernel = np.ones((5, 5), np.uint8)
+            thresh = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel, iterations=2)
             
             contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             if contours:
@@ -1308,6 +1308,12 @@ class AnnotationApp:
                 for cnt in contours:
                     if cv2.contourArea(cnt) < 10: continue
                     br_x, br_y, br_w, br_h = cv2.boundingRect(cnt)
+                    
+                    orig_w_roi = max(1, (x2 - x1))
+                    orig_h_roi = max(1, (y2 - y1))
+                    if br_w > orig_w_roi * 1.5 or br_h > orig_h_roi * 1.5:
+                        continue
+                        
                     cnt_cx = br_x + br_w / 2.0
                     cnt_cy = br_y + br_h / 2.0
                     
@@ -1668,15 +1674,49 @@ class AnnotationApp:
     # ════════════════════════════════════════════════════════════════
 
     def _next_image(self):
+        mode_val = self.view_mode.get() if hasattr(self, 'view_mode') else "Full"
+        
+        if mode_val == "Q1":
+            self.view_mode.set("Q2")
+            self._render_image()
+            return
+        elif mode_val == "Q2":
+            self.view_mode.set("Q3")
+            self._render_image()
+            return
+        elif mode_val == "Q3":
+            self.view_mode.set("Q4")
+            self._render_image()
+            return
+            
         if self.image_paths and self.current_idx < len(self.image_paths) - 1:
             self._save_labels()
             self.current_idx += 1
+            if mode_val in ["Q1", "Q2", "Q3", "Q4"]:
+                self.view_mode.set("Q1")
             self._load_image()
 
     def _prev_image(self):
+        mode_val = self.view_mode.get() if hasattr(self, 'view_mode') else "Full"
+        
+        if mode_val == "Q4":
+            self.view_mode.set("Q3")
+            self._render_image()
+            return
+        elif mode_val == "Q3":
+            self.view_mode.set("Q2")
+            self._render_image()
+            return
+        elif mode_val == "Q2":
+            self.view_mode.set("Q1")
+            self._render_image()
+            return
+            
         if self.image_paths and self.current_idx > 0:
             self._save_labels()
             self.current_idx -= 1
+            if mode_val in ["Q1", "Q2", "Q3", "Q4"]:
+                self.view_mode.set("Q4")
             self._load_image()
 
     def _on_combo_jump(self, event=None):
@@ -1900,6 +1940,14 @@ class AnnotationApp:
                 self.scale_var.set(str(config["scale"]))
             if "show_compare" in config and hasattr(self, 'show_compare'):
                 self.show_compare.set(config["show_compare"])
+                
+            if "current_image" in config and getattr(self, 'image_paths', None):
+                target = config["current_image"]
+                for i, p in enumerate(self.image_paths):
+                    if p.name == target:
+                        self.current_idx = i
+                        self._load_image()
+                        break
         except Exception as e:
             print(f"[WARNING] Failed to load UI settings: {e}")
 
@@ -1928,6 +1976,8 @@ class AnnotationApp:
             except Exception: pass
         if hasattr(self, 'show_compare'):
             updates["show_compare"] = self.show_compare.get()
+        if hasattr(self, 'image_paths') and hasattr(self, 'current_idx') and self.image_paths and self.current_idx < len(self.image_paths):
+            updates["current_image"] = self.image_paths[self.current_idx].name
         save_settings(updates)
 
     def _on_close(self):
