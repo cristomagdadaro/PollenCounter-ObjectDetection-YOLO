@@ -101,6 +101,14 @@ def main() -> None:
     """Entry-point: configure and launch YOLO training."""
     args = parse_args()
 
+    # Route standard models to pretrained_models directory
+    model_lower = args.model.lower()
+    if model_lower in ["yolo11n", "yolo11s", "yolo11m", "yolo11l", "yolo11x", 
+                       "yolo11n.pt", "yolo11s.pt", "yolo11m.pt", "yolo11l.pt", "yolo11x.pt"]:
+        if not model_lower.endswith(".pt"):
+            model_lower += ".pt"
+        Path("pretrained_models").mkdir(parents=True, exist_ok=True)
+        args.model = f"pretrained_models/{model_lower}"
     data_path = Path(args.data)
     if not data_path.exists():
         print(f"[ERROR] Dataset config not found: {data_path}")
@@ -164,7 +172,7 @@ def _run_standard_training(args, data_path):
         device=args.device,
         iou=0.5,
         agnostic_nms=True,
-        max_det=1000,
+        max_det=1500,
         project=str(Path(args.project) / args.name),
         name="val_results",
     )
@@ -301,7 +309,7 @@ def _run_kfold(args, dataset_root):
             device=args.device,
             iou=0.5,
             agnostic_nms=True,
-            max_det=1000,
+            max_det=1500,
             project=str(Path(args.project) / fold_name),
             name="val_results",
         )
