@@ -52,6 +52,32 @@ This project has evolved through continuous testing to optimise accuracy. Below 
 
 ##  Training History & Results Log
 
+### Comprehensive Model Performance (i1 to i17)
+
+Below is a complete matrix of all recorded model iterations (stored in `runs/detect/`) from the first to the latest, allowing for direct comparison of Precision, Recall, and mAP50 as the dataset grew.
+
+| Run ID | Architecture | Train Imgs | Val Imgs | Precision | Recall | mAP50 | Remarks |
+|---|---|---|---|---|---|---|---|
+| `i1` | YOLO11N | 30 | 2 | 45% | 43% | 35% | Initial baseline |
+| `i2` | YOLO11M | 57 | 10 | 63% | 56% | 51% | Upgraded to Medium (overfit) |
+| `i3` | YOLO11S | 57 | 10 | 57% | 61% | 49% | Upgraded to Small |
+| `i4` | YOLO11N | 57 | 10 | 64% | 60% | 53% | Reverted to Nano (performed best) |
+| `i5` | YOLO11N | 79 | 10 | 63% | 58% | 53% | Dataset scaling |
+| `i6` | YOLO11N | 86 | 13 | 63% | 63% | 53% | Dataset scaling |
+| `i7` | YOLO11N | 164 | 20 | 69% | 67% | 61% | Breakthrough: First time breaking 60% mAP50 |
+| `i8` | YOLO11S | 164 | 20 | 69% | 65% | 57% | YOLO11S test (peaked early) |
+| `i9` | YOLO11N | 192 | 14 | 64% | 64% | 52% | Dataset purged of duplicate boxes (True baseline) |
+| `i10` | YOLO11N | 192 | 14 | 70% | 65% | 65% | Extreme Augmentations |
+| `i11` | YOLO11N | 200 | 16 | 79% | 70% | 68% | Data Leakage Detected (DLeak) |
+| `i12` | YOLO11N | 200 | 16 | 74% | 66% | 59% | Data Leakage Detected (DLeak) |
+| `i13` | YOLO11N | 200 | 16 | 79% | 71% | 69% | Data Leakage Detected (DLeak) |
+| `i14` | YOLO11N | 200 | 16 | 80% | 73% | 73% | Data Leakage Detected (DLeak) |
+| `i15` | YOLO11N | 220 | 16 | 75% | 65% | 59% | Unseen Data Baseline (Strict isolation) |
+| `i16` | YOLO11N | 220 | 16 | 78% | 66% | 66% | Bootcamp augmentations (mosaic=1.0, translate=0.5) |
+| `i17` | YOLO11N | 221 | 15 | 82% | 69% | 72% | SGD Optimizer + Bootcamp (Current Best) |
+
+### Major Milestones & Insights
+
 To ensure continuous improvement, log the results of every major training run here to compare and contrast how different hyperparameter combinations affect the `mAP50`.
 
 | Date | Dataset Size | Model | Resolution (`imgsz`) | Batch Size | Epochs | mAP50 | Notes / Insights |
