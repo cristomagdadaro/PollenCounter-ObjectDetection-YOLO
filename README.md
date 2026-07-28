@@ -1,4 +1,4 @@
-#  PollenCounter  YOLO11 Object Detection
+# Pollen Counter & Annotator (YOLOv11n)
 
 > **High-Volume Automated Pollen Counting** using YOLO11.
 
