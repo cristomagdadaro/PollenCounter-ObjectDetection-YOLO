@@ -612,7 +612,8 @@ class AnnotationApp:
         path = self.image_paths[self.current_idx]
 
         # Load with PIL
-        self.orig_pil_img = Image.open(path)
+        with Image.open(path) as img:
+            self.orig_pil_img = img.copy()
         self.full_w, self.full_h = self.orig_pil_img.size
         
         self.view_x_offset = 0.0
@@ -1343,58 +1344,31 @@ class AnnotationApp:
         x2 = int((box.x_center + box.w / 2) * img_w)
         y2 = int((box.y_center + box.h / 2) * img_h)
         
-        pad_x = int((x2 - x1) * 0.3)
-        pad_y = int((y2 - y1) * 0.3)
+        x1, y1 = max(0, x1), max(0, y1)
+        x2, y2 = min(img_w, x2), min(img_h, y2)
         
-        rx1, ry1 = max(0, x1 - pad_x), max(0, y1 - pad_y)
-        rx2, ry2 = min(img_w, x2 + pad_x), min(img_h, y2 + pad_y)
-        
-        if rx2 <= rx1 or ry2 <= ry1: return False
+        if x2 <= x1 or y2 <= y1:
+            return False
             
-        roi = img_bgr[ry1:ry2, rx1:rx2]
+        roi = img_bgr[y1:y2, x1:x2]
+        
         try:
             gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
             blurred = cv2.GaussianBlur(gray, (5, 5), 0)
             _, thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
             
-            # Apply morphological opening to disconnect slightly touching grains
-            kernel = np.ones((5, 5), np.uint8)
-            thresh = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel, iterations=2)
-            
             contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            
             if contours:
-                orig_cx_roi = (x1 + x2) / 2.0 - rx1
-                orig_cy_roi = (y1 + y2) / 2.0 - ry1
+                largest_contour = max(contours, key=cv2.contourArea)
+                cx, cy, cw, ch = cv2.boundingRect(largest_contour)
                 
-                best_contour = None
-                min_dist = float('inf')
-                
-                for cnt in contours:
-                    if cv2.contourArea(cnt) < 10: continue
-                    br_x, br_y, br_w, br_h = cv2.boundingRect(cnt)
-                    
-                    orig_w_roi = max(1, (x2 - x1))
-                    orig_h_roi = max(1, (y2 - y1))
-                    if br_w > orig_w_roi * 1.5 or br_h > orig_h_roi * 1.5:
-                        continue
-                        
-                    cnt_cx = br_x + br_w / 2.0
-                    cnt_cy = br_y + br_h / 2.0
-                    
-                    dist = (cnt_cx - orig_cx_roi)**2 + (cnt_cy - orig_cy_roi)**2
-                    if dist < min_dist:
-                        min_dist = dist
-                        best_contour = cnt
-                
-                if best_contour is None:
-                    return False
-                    
-                cx, cy, cw, ch = cv2.boundingRect(best_contour)
-                pad_w, pad_h = int(cw * 0.08), int(ch * 0.08)
-                new_x1 = max(0, rx1 + cx - pad_w)
-                new_y1 = max(0, ry1 + cy - pad_h)
-                new_x2 = min(img_w, rx1 + cx + cw + pad_w)
-                new_y2 = min(img_h, ry1 + cy + ch + pad_h)
+                pad_w = int(cw * 0.08)
+                pad_h = int(ch * 0.08)
+                new_x1 = max(0, x1 + cx - pad_w)
+                new_y1 = max(0, y1 + cy - pad_h)
+                new_x2 = min(img_w, x1 + cx + cw + pad_w)
+                new_y2 = min(img_h, y1 + cy + ch + pad_h)
                 
                 box.w = (new_x2 - new_x1) / img_w
                 box.h = (new_y2 - new_y1) / img_h
@@ -1788,34 +1762,10 @@ class AnnotationApp:
                             x2 = int((box.x_center + box.w / 2) * img_w)
                             y2 = int((box.y_center + box.h / 2) * img_h)
                             
-                            pad_x = int((x2 - x1) * 0.3)
-                            pad_y = int((y2 - y1) * 0.3)
-                            
-                            rx1, ry1 = max(0, x1 - pad_x), max(0, y1 - pad_y)
-                            rx2, ry2 = min(img_w, x2 + pad_x), min(img_h, y2 + pad_y)
-                            
-                            if rx2 > rx1 and ry2 > ry1:
-                                roi = img_bgr[ry1:ry2, rx1:rx2]
-                                try:
-                                    gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-                                    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-                                    _, thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-                                    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-                                    if contours:
-                                        largest = max(contours, key=cv2.contourArea)
-                                        cx, cy, cw, ch = cv2.boundingRect(largest)
-                                        pad_w, pad_h = int(cw * 0.08), int(ch * 0.08)
-                                        new_x1 = max(0, rx1 + cx - pad_w)
-                                        new_y1 = max(0, ry1 + cy - pad_h)
-                                        new_x2 = min(img_w, rx1 + cx + cw + pad_w)
-                                        new_y2 = min(img_h, ry1 + cy + ch + pad_h)
-                                        box.w = (new_x2 - new_x1) / img_w
-                                        box.h = (new_y2 - new_y1) / img_h
-                                        box.x_center = (new_x1 + new_x2) / 2.0 / img_w
-                                        box.y_center = (new_y1 + new_y2) / 2.0 / img_h
-                                        changed_this_file = True
-                                except Exception:
-                                    pass
+                            # Temporarily override self.orig_pil_img for the snap method
+                            self.orig_pil_img = Image.fromarray(cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB))
+                            if self._snap_single_box(box, img_bgr=img_bgr):
+                                changed_this_file = True
                                     
                         new_lines.append(box.to_yolo_line() + "\n")
                         
@@ -2036,12 +1986,25 @@ class AnnotationApp:
         if messagebox.askyesno(f"Move to {target_set}", f"Move '{name}' to {target_set}?"):
             # Move image
             dest_img = target_img_dir / img_path.name
+            
+            # Windows file lock prevention: clear PIL image reference before moving
+            self.orig_pil_img = None
+            self.pil_img = None
+            self.canvas.delete("all")
+            
             shutil.move(str(img_path), str(dest_img))
 
             # Move label if exists
             if label_path.exists():
                 dest_label = target_label_dir / label_path.name
                 shutil.move(str(label_path), str(dest_label))
+                
+            # Move CLAHE image if exists
+            clahe_img_path = Path(str(img_path).replace("images", "images_clahe"))
+            if clahe_img_path.exists():
+                dest_clahe_img = Path(str(dest_img).replace("images", "images_clahe"))
+                dest_clahe_img.parent.mkdir(parents=True, exist_ok=True)
+                shutil.move(str(clahe_img_path), str(dest_clahe_img))
 
             # Remove from list
             self.image_paths.pop(self.current_idx)
