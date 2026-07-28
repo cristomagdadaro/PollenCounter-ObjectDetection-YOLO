@@ -8,8 +8,8 @@
 optimizer: AdamW         # AdamW handles small datasets better than SGD
 lr0: 0.001              # Initial learning rate (lower than default to prevent NaN with AdamW)
 amp: false              # Disable mixed precision to prevent NaN on certain GPUs
-patience: 100            # Early stopping after N epochs without improvement
-dropout: 0.2           # Randomly drops 20% of neurons to prevent overfitting
+patience: 150            # Early stopping after N epochs without improvement
+dropout: 0.25           # Randomly drops 20% of neurons to prevent overfitting
 label_smoothing: 0.1    # Targets 90% confidence instead of 100%
 box: 0.05               # Lower box loss weight — prioritize detection over tight boxes
 
@@ -19,15 +19,15 @@ fliplr: 0.5             # 50% horizontal flip
 flipud: 0.5             # 50% vertical flip
 scale: 0.5              # Random scale +/- 50%
 translate: 0.3          # Random shift up to 30%
-hsv_h: 0.06             # Hue shift
-hsv_s: 0.5              # Saturation shift
-hsv_v: 0.5              # Brightness shift
-mosaic: 0.5             # Stitch 4 images together (100% chance)
+hsv_h: 0.08             # Hue shift
+hsv_s: 0.6              # Saturation shift
+hsv_v: 0.6              # Brightness shift
+mosaic: 1.0             # Stitch 4 images together (100% chance)
 mixup: 0.1              # Blend 2 images (10% chance)
 copy_paste: 0.0         # Disabled
 close_mosaic: 0         # Keep mosaic active until the end of training
 
 # ── System ───────────────────────────────────────────────────────────
-workers: 4              # Dataloader threads (keep low on Windows)
+workers: 2              # Dataloader threads (keep low on Windows)
 max_det: 1500           # Max detections per image (default 300 is too low for dense pollen)
 multi_scale: false      # Disable random resolution changes during training

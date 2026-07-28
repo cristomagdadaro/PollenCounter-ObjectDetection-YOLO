@@ -55,6 +55,8 @@ To ensure continuous improvement, log the results of every major training run he
 | **Jul 22** | 164 Train / 20 Val | `yolo11n.pt` | 1024 | 4 | 150 | **54.4%** | *Pre-purge baseline. High score was artificially inflated due to overlapping duplicate bounding boxes in the dataset.* |
 | **Jul 22** | 192 Train / 14 Val | `yolo11n.pt` | 1024 | 4 | 150 | **41.1%** | *True Baseline! Dataset was purged of hundreds of corrupted duplicate boxes using `clean_all_duplicates.py`. This is the first honest, un-inflated metric on a fully sanitized dataset.* |
 | **Jul 22** | 192 Train / 14 Val | `yolo11n.pt` | 1024 | 4 | 100 | **50.0%** | *Extreme Augmentation Run (`scale=0.5, hsv=0.4, translate=0.3`). By forcing the model to learn on chaotic, heavily augmented images, accuracy surged from 41% to 50% (peaking at 51.3% mid-training).* |
+| **Jul 28** | 220 Train / 16 Val | `yolo11n.pt` | 1024 | 4 | 258 | **59.9%** | *`i15` Model. Unseen Data Baseline. Old leaked validation data was moved to training, and a 100% brand-new unseen validation set of 16 images was created to prevent data leakage. Hit 59.9% mAP50 and 75.6% Precision.* |
+| **Jul 28** | 220 Train / 16 Val | `yolo11n.pt` | 1024 | 4 | 295 | **66.3%** | *`i16` Model. Bootcamp Augmentations. Cranked `mosaic: 1.0` and `translate: 0.5`. Training was violently hard, so `patience` was bumped to 150. Model broke through at Epoch 145 and scored an incredibly robust 66.3% mAP50 and 78.0% Precision on totally unseen data. Best model to date!* |
 
 *Remember to update this table every time a new dataset batch is annotated or a major training setting is changed!*
 
@@ -66,9 +68,9 @@ This project features three custom-built Tkinter desktop applications to make ma
 
 ### 1. Dataset Annotator (`scripts/annotate.py`)
 Rapidly build your dataset manually or fix auto-annotated active-learning images.
-- **OpenCV Auto-Snapping:** Perfectly "shrink-wraps" your drawn bounding boxes around the dark pollen grain automatically (with an 8% padding to preserve blurry edges).
+- **OpenCV Auto-Snapping:** Perfectly "shrink-wraps" your drawn bounding boxes around the dark pollen grain automatically (with an 8% padding to preserve blurry edges). Restored the original, simpler, and highly accurate edge-snapping algorithm.
 - **Visual Error Warnings:** Boxes are color-coded in real-time. **Green** (Normal), **Orange** (Overlapping), **Red** (Oversized).
-- **Move/Exclude:** Instantly move images between Train, Validation, or Excluded folders.
+- **Move/Exclude:** Instantly move images between Train, Validation, or Excluded folders. Automatically unloads images to bypass Windows file locks and syncs CLAHE equivalents dynamically.
 
 ### 2. Validation Comparator (`scripts/compare_val.py`)
 Visually analyze exactly where your model is making mistakes.
