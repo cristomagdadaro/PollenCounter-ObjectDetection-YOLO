@@ -6,6 +6,26 @@ Automate the counting of microscopic pollen grains across massive image datasets
 
 ---
 
+##  Concept Primer: How the AI Works
+
+To understand the architecture of this project, it helps to understand how the underlying technologies interact:
+
+### 1. Machine Learning (The Broad Category)
+Machine Learning (ML) is a subset of Artificial Intelligence where computers are taught to recognize patterns in data without being explicitly programmed with rules. 
+- **How it works:** Instead of writing an `if/else` statement like *"if a pixel is dark yellow, it's pollen,"* we give the computer examples of pollen and let it figure out the rules on its own.
+
+### 2. Deep Learning (The Advanced Technique)
+Deep Learning (DL) is a highly specialized subfield *inside* Machine Learning. It uses **Artificial Neural Networks** inspired by the human brain, containing many layers. 
+- **How it works:** It can handle incredibly complex, unstructured data (like raw microscopy images) that traditional Machine Learning struggles with. It automatically discovers the most important features (edges, shapes, textures) rather than requiring a human to extract them first.
+- **Application:** Our **YOLO11** model is a Deep Learning convolutional neural network.
+
+### 3. Computer Vision (The Application)
+Computer Vision (CV) is the specific field of teaching computers to "see" and interpret the visual world. It is the *goal*, rather than the algorithm.
+- **How it works:** Historically, CV was done using manual math and geometry (like the OpenCV contour-snapping algorithm used in `annotate.py` to perfectly fit bounding boxes). Today, modern CV relies almost entirely on Deep Learning to achieve high accuracy.
+- **Putting it together:** We are solving a **Computer Vision** problem (counting pollen) by using a **Machine Learning** approach, specifically powered by a **Deep Learning** network (YOLO11).
+
+---
+
 ##  Model Evolution & Best Practices (Living Document)
 
 This project has evolved through continuous testing to optimise accuracy. Below are the key discoveries and techniques to improve the model over time.
