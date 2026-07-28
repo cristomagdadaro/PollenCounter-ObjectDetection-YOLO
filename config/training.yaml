@@ -28,6 +28,6 @@ copy_paste: 0.0         # Disabled
 close_mosaic: 0         # Keep mosaic active until the end of training
 
 # ── System ───────────────────────────────────────────────────────────
-workers: 4              # Dataloader threads (keep low on Windows)
+workers: 2              # Dataloader threads (reduced from 4 to 2 to prevent CPU overheating)
 max_det: 1500           # Max detections per image (default 300 is too low for dense pollen)
 multi_scale: false      # Disable random resolution changes during training
