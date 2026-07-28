@@ -5,8 +5,8 @@
 # These values are unpacked directly into model.train(**config).
 
 # ── Optimization ─────────────────────────────────────────────────────
-optimizer: AdamW         # AdamW handles small datasets better than SGD
-lr0: 0.001              # Initial learning rate (lower than default to prevent NaN with AdamW)
+optimizer: SGD         # AdamW handles small datasets better than SGD
+lr0: 0.01              # Initial learning rate (lower than default to prevent NaN with AdamW)
 amp: false              # Disable mixed precision to prevent NaN on certain GPUs
 patience: 150            # Early stopping after N epochs without improvement
 dropout: 0.25           # Randomly drops 20% of neurons to prevent overfitting
@@ -28,6 +28,6 @@ copy_paste: 0.0         # Disabled
 close_mosaic: 0         # Keep mosaic active until the end of training
 
 # ── System ───────────────────────────────────────────────────────────
-workers: 2              # Dataloader threads (keep low on Windows)
+workers: 4              # Dataloader threads (keep low on Windows)
 max_det: 1500           # Max detections per image (default 300 is too low for dense pollen)
 multi_scale: false      # Disable random resolution changes during training

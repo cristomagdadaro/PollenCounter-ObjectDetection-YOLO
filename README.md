@@ -39,6 +39,17 @@ This project has evolved through continuous testing to optimise accuracy. Below 
 
 ---
 
+### 7. Optimizers (AdamW vs SGD)
+- **AdamW (Default for Small Datasets):** Converges incredibly fast and rarely gets stuck. Highly recommended for small datasets (under a few thousand images). We use a smaller learning rate (`lr0=0.001`) to prevent it from crashing out of the bounds.
+- **SGD (The Tortoise):** Learns much slower and bounces violently, but often finds a better final global minimum. Recommended when training for long periods (e.g. 500 epochs). Standard learning rate applies (`lr0=0.01`).
+
+### 8. Scale Invariance (The AI is Literal)
+- If you train the model exclusively on images taken with a 10x magnification lens, the AI will learn that "pollen" is a very specific physical pixel size (e.g., 30x30 pixels). 
+- If you feed it an image with a massive 200x200 pixel pollen grain, it will ignore it because it's "too big to be pollen."
+- **Solution:** If you intend to use different microscope magnifications, you must increase the `scale` augmentation in `training.yaml` to force the AI to learn pollen at all zoom levels!
+
+---
+
 ##  Training History & Results Log
 
 To ensure continuous improvement, log the results of every major training run here to compare and contrast how different hyperparameter combinations affect the `mAP50`.
