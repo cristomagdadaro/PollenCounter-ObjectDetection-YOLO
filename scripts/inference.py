@@ -41,6 +41,7 @@ def run_inference(
     image_paths: list[Path],
     out_dir: Path,
     conf: float,
+    iou: float,
     imgsz: int,
     device: str,
     save_annotated_imgs: bool = True,
@@ -76,7 +77,7 @@ def run_inference(
         img_h, img_w = img.shape[:2]
 
         results = model.predict(
-            source=str(img_path), conf=conf, iou=0.5, agnostic_nms=True,
+            source=str(img_path), conf=conf, iou=iou, agnostic_nms=True,
             imgsz=imgsz, device=device, max_det=5000, verbose=False,
         )
         boxes = results[0].boxes
@@ -371,11 +372,24 @@ def run_gui():
 
     saved = load_settings()
 
+    detect_dir = PROJECT_ROOT / "runs" / "detect"
+    available_models = [d.name for d in detect_dir.iterdir() if d.is_dir() and (d / "weights" / "best.pt").exists()]
+    if not available_models:
+        available_models = ["No models found"]
+    
+    default_weight_name = DEFAULT_WEIGHTS.parent.parent.name if DEFAULT_WEIGHTS else (available_models[-1] if available_models else "")
+
     var_mode = tk.StringVar(value=saved.get("mode", "Count & Analyze"))
     var_input = tk.StringVar(value=saved.get("input", str(RAW_IMAGES)))
     var_out = tk.StringVar(value=saved.get("output", str(DEFAULT_OUTPUT)))
-    var_weights = tk.StringVar(value=saved.get("weights", str(DEFAULT_WEIGHTS or "")))
+    
+    saved_weights = saved.get("weights", "")
+    if saved_weights not in available_models and available_models:
+        saved_weights = default_weight_name
+    var_weights = tk.StringVar(value=saved_weights)
+    
     var_conf = tk.StringVar(value=str(saved.get("conf", "0.03")))
+    var_iou = tk.StringVar(value=str(saved.get("iou", "0.40")))
     var_imgsz = tk.StringVar(value=str(saved.get("imgsz", "1024")))
     var_device = tk.StringVar(value=str(saved.get("device", "0")))
     var_opacity = tk.DoubleVar(value=float(saved.get("opacity", 0.3)))
@@ -397,9 +411,10 @@ def run_gui():
 
     make_row(root, "Input Folder:", var_input, lambda: var_input.set(filedialog.askdirectory() or var_input.get()))
     make_row(root, "Output Folder:", var_out, lambda: var_out.set(filedialog.askdirectory() or var_out.get()))
-    make_row(root, "Weights (.pt):", var_weights, lambda: var_weights.set(filedialog.askopenfilename(filetypes=[("PyTorch Weights", "*.pt"), ("All Files", "*.*")]) or var_weights.get()))
+    make_row(root, "Weights (.pt):", var_weights, is_combo=True, combo_vals=available_models)
 
     make_row(root, "Confidence:", var_conf)
+    make_row(root, "IoU Threshold:", var_iou)
     make_row(root, "Image Size:", var_imgsz)
     make_row(root, "Device:", var_device)
 
@@ -475,6 +490,7 @@ def run_gui():
             "output": var_out.get(),
             "weights": var_weights.get(),
             "conf": var_conf.get(),
+            "iou": var_iou.get(),
             "imgsz": var_imgsz.get(),
             "device": var_device.get(),
             "opacity": var_opacity.get(),
@@ -489,11 +505,12 @@ def run_gui():
                     return
 
                 root.after(0, lambda: log_cb(f"Found {len(images)} images.\nLoading model..."))
-                model = YOLO(var_weights.get())
+                weight_path = str(PROJECT_ROOT / "runs" / "detect" / var_weights.get() / "weights" / "best.pt")
+                model = YOLO(weight_path)
 
                 summary = run_inference(
                     mode=var_mode.get(), model=model, image_paths=images,
-                    out_dir=out_dir, conf=float(var_conf.get()), imgsz=int(var_imgsz.get()),
+                    out_dir=out_dir, conf=float(var_conf.get()), iou=float(var_iou.get()), imgsz=int(var_imgsz.get()),
                     device=var_device.get(),
                     box_opacity=float(var_opacity.get()), progress_cb=progress_cb,
                 )

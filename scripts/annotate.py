@@ -224,6 +224,7 @@ class AnnotationApp:
         self.thickness_entry.bind("<Escape>", lambda e: self.canvas.focus_set())
 
         # 5. Fit Options
+        self.fit_mode = tk.StringVar(value="none")
         tk.Button(header_controls, text="Fit W", font=("Segoe UI", 8, "bold"), bg="#4B5563", fg="white", bd=0, cursor="hand2", padx=4, command=self._fit_width).pack(side=tk.LEFT, padx=(10, 2))
         tk.Button(header_controls, text="Fit H", font=("Segoe UI", 8, "bold"), bg="#4B5563", fg="white", bd=0, cursor="hand2", padx=4, command=self._fit_height).pack(side=tk.LEFT, padx=2)
 
@@ -253,6 +254,7 @@ class AnnotationApp:
         self.show_orange = tk.BooleanVar(value=True)
         self.show_yellow = tk.BooleanVar(value=True)
         self.show_green = tk.BooleanVar(value=True)
+        self.show_violet = tk.BooleanVar(value=True)
         
         self.chk_red = tk.Checkbutton(header_controls, text="Red (0)", variable=self.show_red, bg=ACCENT, fg="#EF4444", selectcolor="#FFFFFF", activebackground=ACCENT, activeforeground="#EF4444", font=("Segoe UI", 8, "bold"), command=self._redraw_boxes)
         self.chk_red.pack(side=tk.LEFT, padx=(6, 2))
@@ -262,6 +264,8 @@ class AnnotationApp:
         self.chk_yellow.pack(side=tk.LEFT, padx=2)
         self.chk_green = tk.Checkbutton(header_controls, text="Grn (0)", variable=self.show_green, bg=ACCENT, fg="#22C55E", selectcolor="#FFFFFF", activebackground=ACCENT, activeforeground="#22C55E", font=("Segoe UI", 8, "bold"), command=self._redraw_boxes)
         self.chk_green.pack(side=tk.LEFT, padx=2)
+        self.chk_violet = tk.Checkbutton(header_controls, text="Vio (0)", variable=self.show_violet, bg=ACCENT, fg="#8B5CF6", selectcolor="#FFFFFF", activebackground=ACCENT, activeforeground="#8B5CF6", font=("Segoe UI", 8, "bold"), command=self._redraw_boxes)
+        self.chk_violet.pack(side=tk.LEFT, padx=2)
 
         self.progress_label = tk.Label(
             top, text="", font=("Segoe UI", 11), bg=ACCENT, fg="#FFFFFF"
@@ -375,19 +379,27 @@ class AnnotationApp:
 
         ar_frame = tk.Frame(sidebar, bg=SIDEBAR_BG)
         ar_frame.pack(anchor=tk.W, padx=12, pady=(0, 4))
-        tk.Label(ar_frame, text="Threshold:", font=("Consolas", 9), bg=SIDEBAR_BG, fg=TEXT_COLOR).pack(side=tk.LEFT)
-        self.conf_entry = tk.Entry(ar_frame, width=5, font=("Consolas", 10), bg="#FFFFFF", fg="black", insertbackground="black", bd=0)
+        tk.Label(ar_frame, text="Conf:", font=("Consolas", 9), bg=SIDEBAR_BG, fg=TEXT_COLOR).pack(side=tk.LEFT)
+        self.conf_entry = tk.Entry(ar_frame, width=4, font=("Consolas", 10), bg="#FFFFFF", fg="black", insertbackground="black", bd=0)
         self.conf_entry.insert(0, "0.15")
-        self.conf_entry.pack(side=tk.LEFT, padx=(2, 8))
+        self.conf_entry.pack(side=tk.LEFT, padx=(2, 4))
+        
+        tk.Label(ar_frame, text="IoU:", font=("Consolas", 9), bg=SIDEBAR_BG, fg=TEXT_COLOR).pack(side=tk.LEFT)
+        self.iou_entry = tk.Entry(ar_frame, width=4, font=("Consolas", 10), bg="#FFFFFF", fg="black", insertbackground="black", bd=0)
+        self.iou_entry.insert(0, "0.25")
+        self.iou_entry.pack(side=tk.LEFT, padx=(2, 0))
+
+        ar_btn_frame = tk.Frame(sidebar, bg=SIDEBAR_BG)
+        ar_btn_frame.pack(anchor=tk.W, padx=12, pady=(2, 4))
         
         self.recount_btn = tk.Button(
-            ar_frame, text="Find Missing", bg="#8B5CF6", fg="white",
+            ar_btn_frame, text="Find Missing", bg="#8B5CF6", fg="white",
             activebackground="#7C3AED", command=self._auto_recount, font=("Segoe UI", 9, "bold"), bd=0, cursor="hand2", padx=8, pady=2
         )
         self.recount_btn.pack(side=tk.LEFT)
 
         self.discard_recount_btn = tk.Button(
-            ar_frame, text="✖", bg="#EF4444", fg="white",
+            ar_btn_frame, text="✖", bg="#EF4444", fg="white",
             activebackground="#DC2626", command=self._discard_recount, font=("Segoe UI", 9, "bold"), bd=0, cursor="hand2", padx=6, pady=2
         )
         self.discard_recount_btn.pack(side=tk.LEFT, padx=(4, 0))
@@ -599,6 +611,9 @@ class AnnotationApp:
         elif char == 'g':
             self.show_green.set(not self.show_green.get())
             self._redraw_boxes()
+        elif char == 'v':
+            self.show_violet.set(not self.show_violet.get())
+            self._redraw_boxes()
 
     # ════════════════════════════════════════════════════════════════
     #  IMAGE LOADING
@@ -645,6 +660,15 @@ class AnnotationApp:
 
         self._update_size_entries()
         self._render_image()
+        
+        # Apply auto fit if set
+        if hasattr(self, 'fit_mode'):
+            fm = self.fit_mode.get()
+            if fm == "W":
+                self._fit_width()
+            elif fm == "H":
+                self._fit_height()
+                
         self._update_ui()
         
     def _update_size_entries(self):
@@ -752,10 +776,12 @@ class AnnotationApp:
 
     def _zoom_in(self):
         self.zoom_level = min(self.zoom_level * 1.25, 10.0)
+        if hasattr(self, 'fit_mode'): self.fit_mode.set("none")
         self._render_image()
 
     def _zoom_out(self):
         self.zoom_level = max(self.zoom_level / 1.25, 0.2)
+        if hasattr(self, 'fit_mode'): self.fit_mode.set("none")
         self._render_image()
         
     def _fit_width(self):
@@ -766,6 +792,7 @@ class AnnotationApp:
         scale_h = canvas_h / self.orig_h
         base_scale = min(scale_w, scale_h, 1.0)
         self.zoom_level = scale_w / base_scale
+        if hasattr(self, 'fit_mode'): self.fit_mode.set("W")
         self._render_image()
 
     def _fit_height(self):
@@ -776,6 +803,7 @@ class AnnotationApp:
         scale_h = canvas_h / self.orig_h
         base_scale = min(scale_w, scale_h, 1.0)
         self.zoom_level = scale_h / base_scale
+        if hasattr(self, 'fit_mode'): self.fit_mode.set("H")
         self._render_image()
 
     def _on_mousewheel(self, event):
@@ -1083,20 +1111,33 @@ class AnnotationApp:
             
         if hasattr(self, 'chk_red'):
             if self.boxes and len(max_overlaps) > 0:
-                red_count = int(np.sum(max_overlaps >= 0.8))
-                orange_count = int(np.sum((max_overlaps >= 0.5) & (max_overlaps < 0.8)))
-                yellow_count = int(np.sum((max_overlaps > 0.0) & (max_overlaps < 0.5)))
-                green_count = int(np.sum(max_overlaps == 0.0))
+                is_auto_arr = np.array([getattr(b, 'is_auto', False) for b in self.boxes])
+                
+                # Exclude auto boxes from standard color counting
+                red_mask = (max_overlaps >= 0.8) & ~is_auto_arr
+                org_mask = (max_overlaps >= 0.5) & (max_overlaps < 0.8) & ~is_auto_arr
+                yel_mask = (max_overlaps > 0.0) & (max_overlaps < 0.5) & ~is_auto_arr
+                grn_mask = (max_overlaps == 0.0) & ~is_auto_arr
+                
+                red_count = int(np.sum(red_mask))
+                orange_count = int(np.sum(org_mask))
+                yellow_count = int(np.sum(yel_mask))
+                green_count = int(np.sum(grn_mask))
+                violet_count = int(np.sum(is_auto_arr))
                 
                 self.chk_red.config(text=f"Red ({red_count})")
                 self.chk_orange.config(text=f"Org ({orange_count})")
                 self.chk_yellow.config(text=f"Yel ({yellow_count})")
                 self.chk_green.config(text=f"Grn ({green_count})")
+                if hasattr(self, 'chk_violet'):
+                    self.chk_violet.config(text=f"Vio ({violet_count})")
             else:
                 self.chk_red.config(text="Red (0)")
                 self.chk_orange.config(text="Org (0)")
                 self.chk_yellow.config(text="Yel (0)")
                 self.chk_green.config(text="Grn (0)")
+                if hasattr(self, 'chk_violet'):
+                    self.chk_violet.config(text="Vio (0)")
             
         for i, box in enumerate(self.boxes):
             x1_n = box.x_center - box.w / 2
@@ -1125,7 +1166,14 @@ class AnnotationApp:
                 
             max_overlap = max_overlaps[i] if i < len(max_overlaps) else 0.0
                         
-            if max_overlap >= 0.8:
+            if getattr(box, 'is_auto', False):
+                if hasattr(self, 'show_violet') and not self.show_violet.get():
+                    box_colors.append(None)
+                    box_color_strs.append(None)
+                else:
+                    box_colors.append(AUTO_BOX_RGB)
+                    box_color_strs.append(AUTO_BOX_HEX)
+            elif max_overlap >= 0.8:
                 if hasattr(self, 'show_red') and not self.show_red.get():
                     box_colors.append(None)
                     box_color_strs.append(None)
@@ -1146,13 +1194,6 @@ class AnnotationApp:
                 else:
                     box_colors.append(OVERLAP_0_RGB)
                     box_color_strs.append(OVERLAP_0_HEX)
-            elif getattr(box, 'is_auto', False):
-                if hasattr(self, 'show_green') and not self.show_green.get():
-                    box_colors.append(None)
-                    box_color_strs.append(None)
-                else:
-                    box_colors.append(AUTO_BOX_RGB)
-                    box_color_strs.append(AUTO_BOX_HEX)
             else:
                 if hasattr(self, 'show_green') and not self.show_green.get():
                     box_colors.append(None)
@@ -1434,9 +1475,15 @@ class AnnotationApp:
                 self.root.update()
 
         try:
-            conf_val = float(self.conf_entry.get())
+            conf_val = float(self.conf_entry.get().replace(',', '.'))
         except ValueError:
             messagebox.showerror("Error", "Invalid confidence value")
+            return
+            
+        try:
+            iou_val = float(self.iou_entry.get().replace(',', '.'))
+        except ValueError:
+            messagebox.showerror("Error", "Invalid IoU value")
             return
             
         selected_model = getattr(self, 'model_combo', None)
@@ -1500,7 +1547,7 @@ class AnnotationApp:
         results = self.yolo_model.predict(
             source=roi,
             conf=conf_val,
-            iou=0.45,
+            iou=iou_val,
             agnostic_nms=True,
             imgsz=1024,
             max_det=5000,
@@ -1556,9 +1603,15 @@ class AnnotationApp:
         if not hasattr(self, 'orig_pil_img') or not self.orig_pil_img or not self.image_paths: return
         
         try:
-            conf_val = float(self.conf_entry.get())
+            conf_val = float(self.conf_entry.get().replace(',', '.'))
         except ValueError:
             messagebox.showerror("Error", "Invalid confidence value")
+            return
+            
+        try:
+            iou_val = float(self.iou_entry.get().replace(',', '.'))
+        except ValueError:
+            messagebox.showerror("Error", "Invalid IoU value")
             return
             
         selected_model = getattr(self, 'model_combo', None)
@@ -1603,7 +1656,7 @@ class AnnotationApp:
         results = self.yolo_model.predict(
             source=img_path,
             conf=conf_val,
-            iou=0.45,
+            iou=iou_val,
             agnostic_nms=True,
             imgsz=1024,
             max_det=5000,
@@ -2108,6 +2161,15 @@ class AnnotationApp:
                 self.smart_recount_var.set(config["smart_recount"])
             if "force_recount" in config and hasattr(self, 'force_recount_var'):
                 self.force_recount_var.set(config["force_recount"])
+            if "iou" in config and hasattr(self, 'iou_entry'):
+                self.iou_entry.delete(0, tk.END)
+                self.iou_entry.insert(0, str(config["iou"]))
+            if "auto_snap" in config and hasattr(self, 'auto_snap'):
+                self.auto_snap.set(config["auto_snap"])
+            if "fit_mode" in config and hasattr(self, 'fit_mode'):
+                self.fit_mode.set(config["fit_mode"])
+            if "show_violet" in config and hasattr(self, 'show_violet'):
+                self.show_violet.set(config["show_violet"])
                 
             if "current_image" in config and getattr(self, 'image_paths', None):
                 target = config["current_image"]
@@ -2148,6 +2210,14 @@ class AnnotationApp:
             updates["smart_recount"] = self.smart_recount_var.get()
         if hasattr(self, 'force_recount_var'):
             updates["force_recount"] = self.force_recount_var.get()
+        if hasattr(self, 'iou_entry'):
+            updates["iou"] = self.iou_entry.get()
+        if hasattr(self, 'auto_snap'):
+            updates["auto_snap"] = self.auto_snap.get()
+        if hasattr(self, 'fit_mode'):
+            updates["fit_mode"] = self.fit_mode.get()
+        if hasattr(self, 'show_violet'):
+            updates["show_violet"] = self.show_violet.get()
         if hasattr(self, 'image_paths') and hasattr(self, 'current_idx') and self.image_paths and self.current_idx < len(self.image_paths):
             updates["current_image"] = self.image_paths[self.current_idx].name
         save_settings(updates)
