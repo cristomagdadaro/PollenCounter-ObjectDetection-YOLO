@@ -68,6 +68,7 @@ To ensure continuous improvement, log the results of every major training run he
 | **Jul 22** | 192 Train / 14 Val | `yolo11n.pt` | 1024 | 4 | 100 | **50.0%** | *Extreme Augmentation Run (`scale=0.5, hsv=0.4, translate=0.3`). By forcing the model to learn on chaotic, heavily augmented images, accuracy surged from 41% to 50% (peaking at 51.3% mid-training).* |
 | **Jul 28** | 220 Train / 16 Val | `yolo11n.pt` | 1024 | 4 | 258 | **59.9%** | *`i15` Model. Unseen Data Baseline. Old leaked validation data was moved to training, and a 100% brand-new unseen validation set of 16 images was created to prevent data leakage. Hit 59.9% mAP50 and 75.6% Precision.* |
 | **Jul 28** | 220 Train / 16 Val | `yolo11n.pt` | 1024 | 4 | 295 | **66.3%** | *`i16` Model. Bootcamp Augmentations. Cranked `mosaic: 1.0` and `translate: 0.5`. Training was violently hard, so `patience` was bumped to 150. Model broke through at Epoch 145 and scored an incredibly robust 66.3% mAP50 and 78.0% Precision on totally unseen data. Best model to date!* |
+| **Jul 28** | 220 Train / 16 Val | `yolo11n.pt` | 1024 | 4 | 256 | **72.1%** | *`i17` Model (SGD). Switched optimizer to SGD (`lr0=0.01`). Model oscillated violently but eventually found a massive global minimum at Epoch 106, scoring **72.1% mAP50** and an unprecedented **82.4% Precision**. SGD + Bootcamp Augmentations is the current winning formula!* |
 
 *Remember to update this table every time a new dataset batch is annotated or a major training setting is changed!*
 
