@@ -224,7 +224,7 @@ class AnnotationApp:
         self.thickness_entry.bind("<Escape>", lambda e: self.canvas.focus_set())
 
         # 5. Fit Options
-        self.fit_mode = tk.StringVar(value="none")
+        self.fit_mode = tk.StringVar(value="H")
         tk.Button(header_controls, text="Fit W", font=("Segoe UI", 8, "bold"), bg="#4B5563", fg="white", bd=0, cursor="hand2", padx=4, command=self._fit_width).pack(side=tk.LEFT, padx=(10, 2))
         tk.Button(header_controls, text="Fit H", font=("Segoe UI", 8, "bold"), bg="#4B5563", fg="white", bd=0, cursor="hand2", padx=4, command=self._fit_height).pack(side=tk.LEFT, padx=2)
 
@@ -1002,16 +1002,23 @@ class AnnotationApp:
         self.status.config(text=f" Auto-box added {suffix}  total: {len(self.boxes)}")
 
     def _calculate_default_box_size(self):
-        """Find the median width and height of all existing annotations."""
+        """Find the median width and height of a sample of existing annotations."""
         widths = []
         heights = []
-        for label_file in self.labels_dir.glob("*.txt"):
-            with open(label_file, "r") as f:
-                for line in f:
-                    box = BoundingBox.from_yolo_line(line)
-                    if box:
-                        widths.append(box.w)
-                        heights.append(box.h)
+        import itertools
+        
+        # Sample at most 100 label files to prevent slow startup on massive sliced datasets
+        label_files = itertools.islice(self.labels_dir.glob("*.txt"), 100)
+        for label_file in label_files:
+            try:
+                with open(label_file, "r") as f:
+                    for line in f:
+                        box = BoundingBox.from_yolo_line(line)
+                        if box:
+                            widths.append(box.w)
+                            heights.append(box.h)
+            except Exception:
+                pass
         
         if widths and heights:
             widths.sort()
@@ -2466,8 +2473,7 @@ class AnnotationApp:
                 self.auto_snap.set(config["auto_snap"])
             if "snap_method" in config and hasattr(self, 'snap_method'):
                 self.snap_method.set(config["snap_method"])
-            if "fit_mode" in config and hasattr(self, 'fit_mode'):
-                self.fit_mode.set(config["fit_mode"])
+            # fit_mode intentionally not loaded to force 'Fit H' on startup
             if "show_violet" in config and hasattr(self, 'show_violet'):
                 self.show_violet.set(config["show_violet"])
                 

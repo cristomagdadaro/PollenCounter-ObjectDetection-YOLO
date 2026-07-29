@@ -12,7 +12,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 # ── Dataset paths ────────────────────────────────────────────────────
-DATASET_ROOT    = PROJECT_ROOT / "datasets"
+DATASET_ROOT    = PROJECT_ROOT / "datasets_sliced"
 DATASET_YAML    = PROJECT_ROOT / "config" / "pollen_dataset.yaml"
 TRAINING_YAML   = PROJECT_ROOT / "config" / "training.yaml"
 SETTINGS_JSON   = PROJECT_ROOT / "config" / "inference_settings.json"
