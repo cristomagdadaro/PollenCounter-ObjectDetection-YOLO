@@ -85,6 +85,7 @@ Below is a complete matrix of all recorded model iterations (`i1` to `i17`), hig
 | `i18` (Jul 28)| YOLO11N | 252 / 16 | 1024 / 4 / 263 | 82.8% | 70.0% | 70.4% | *`i18` Model. Reverted workers to 2 for thermal limits. Continued dataset scaling pushed precision to 82.8% but mAP50 settled at 70.4%.* |
 | `i19` (Jul 29)| YOLO11N | 252 / 16 | 512 / 4 / 74 | 93.5% | 95.6% | 96.3% | *`i19` Model (Patch-Based Training). Sliced the dataset into 6,000+ 512x512 patches. Set `imgsz=512`, `patience=50`, `scale=0.1`. Accuracy exploded to a staggering **96.3% mAP50**, proving that processing large images without downscaling fixes the small-object detection issue perfectly!* |
 | `i20` (Jul 29)| YOLO11S | 260 / 16 | 512 / Auto / 500 | ~94% | ~95% | 97.5% | *Upgraded to YOLO11S (Small) and heavily increased augmentations (`dropout=0.3, scale=0.3, mixup=0.2`). Added capacity allowed mAP50 to hit **97.5%**, but `mAP50-95` hovered around 45% due to architectural limits on tiny objects.* |
+| `i21` (Jul 29)| YOLO11N-P2 | 260 / 16 | 512 / 16 / 198 | 93.8% | 94.5% | 97.9% | *`i21` Model (Nano-P2). Added a P2 stride-4 head and 150 patience. Highest score of all time (97.9% mAP50 / 49.0% mAP50-95). Ultimate microscopic detection architecture!* |
 
 *Remember to update this table every time a new dataset batch is annotated or a major training setting is changed!*
 
