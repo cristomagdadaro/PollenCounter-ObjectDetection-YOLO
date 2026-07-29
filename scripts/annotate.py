@@ -415,9 +415,16 @@ class AnnotationApp:
         # Smart Regional Recount Toggles
         self.smart_recount_var = tk.BooleanVar(value=False)
         self.force_recount_var = tk.BooleanVar(value=False)
+        self.use_sahi_var = tk.BooleanVar(value=True)
         
         regional_frame = tk.Frame(sidebar, bg=SIDEBAR_BG)
         regional_frame.pack(anchor=tk.W, padx=12, pady=(4, 2))
+        
+        tk.Checkbutton(
+            regional_frame, text="Use SAHI", variable=self.use_sahi_var,
+            bg=SIDEBAR_BG, fg=TEXT_COLOR, selectcolor=BG_COLOR,
+            activebackground=SIDEBAR_BG, activeforeground=TEXT_COLOR, font=("Segoe UI", 9)
+        ).pack(anchor=tk.W)
         
         tk.Checkbutton(
             regional_frame, text="Smart Regional Recount", variable=self.smart_recount_var,
@@ -1707,6 +1714,7 @@ class AnnotationApp:
 
         if self.yolo_model is not None and getattr(self, 'loaded_model_name', None) != selected_model:
             self.yolo_model = None
+            self.sahi_model = None
 
         if self.yolo_model is None:
             self.status.config(text=f" Loading YOLO model: {selected_model}...")
@@ -1719,6 +1727,13 @@ class AnnotationApp:
                     self.status.config(text=" Model load failed")
                     return
                 self.yolo_model = YOLO(model_path)
+                try:
+                    from sahi import AutoDetectionModel
+                    self.sahi_model = AutoDetectionModel.from_pretrained(
+                        model_type="yolov8", model_path=str(model_path), confidence_threshold=conf_val, device="cuda:0"
+                    )
+                except Exception:
+                    self.sahi_model = None
                 self.loaded_model_name = selected_model
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to load YOLO: {e}")
@@ -1753,44 +1768,76 @@ class AnnotationApp:
             
         roi = img_bgr[py1:py2, px1:px2]
         
-        results = self.yolo_model.predict(
-            source=roi,
-            conf=conf_val,
-            iou=iou_val,
-            agnostic_nms=True,
-            imgsz=1024,
-            max_det=5000,
-            device="0",
-            verbose=False
-        )
-        
-        if not results: return
-        boxes_data = results[0].boxes
-        if not boxes_data:
-            return
-            
-        new_count = 0
+        use_sahi = hasattr(self, 'use_sahi_var') and self.use_sahi_var.get()
+        new_boxes = []
         roi_w = px2 - px1
         roi_h = py2 - py1
         
-        for box_data in boxes_data:
-            xywhn = box_data.xywhn[0].cpu().numpy()
-            xc_roi, yc_roi, w_roi, h_roi = xywhn
+        if use_sahi and getattr(self, 'sahi_model', None) is not None:
+            self.sahi_model.confidence_threshold = conf_val
+            from sahi.predict import get_sliced_prediction
+            roi_rgb = cv2.cvtColor(roi, cv2.COLOR_BGR2RGB)
+            results = get_sliced_prediction(
+                roi_rgb,
+                self.sahi_model,
+                slice_height=512,
+                slice_width=512,
+                overlap_height_ratio=0.2,
+                overlap_width_ratio=0.2,
+                verbose=0
+            )
             
-            # Convert ROI normalized coordinates to full image pixel coordinates
-            xc_px = px1 + (xc_roi * roi_w)
-            yc_px = py1 + (yc_roi * roi_h)
-            w_px = w_roi * roi_w
-            h_px = h_roi * roi_h
+            if results.object_prediction_list:
+                for pred in results.object_prediction_list:
+                    bbox = pred.bbox
+                    xc_roi = (bbox.minx + bbox.maxx) / 2.0 / roi_w
+                    yc_roi = (bbox.miny + bbox.maxy) / 2.0 / roi_h
+                    w_roi = (bbox.maxx - bbox.minx) / roi_w
+                    h_roi = (bbox.maxy - bbox.miny) / roi_h
+                    
+                    xc_px = px1 + (xc_roi * roi_w)
+                    yc_px = py1 + (yc_roi * roi_h)
+                    w_px = w_roi * roi_w
+                    h_px = h_roi * roi_h
+                    
+                    xc = xc_px / img_w
+                    yc = yc_px / img_h
+                    w = w_px / img_w
+                    h = h_px / img_h
+                    new_boxes.append(BoundingBox(float(xc), float(yc), float(w), float(h), class_id=0, is_auto=True))
+        else:
+            results = self.yolo_model.predict(
+                source=roi,
+                conf=conf_val,
+                iou=iou_val,
+                agnostic_nms=True,
+                imgsz=1024,
+                max_det=5000,
+                device="0",
+                verbose=False
+            )
             
-            # Convert back to full image normalized coordinates
-            xc = xc_px / img_w
-            yc = yc_px / img_h
-            w = w_px / img_w
-            h = h_px / img_h
+            if results and results[0].boxes:
+                for box_data in results[0].boxes:
+                    xywhn = box_data.xywhn[0].cpu().numpy()
+                    xc_roi, yc_roi, w_roi, h_roi = xywhn
+                    
+                    xc_px = px1 + (xc_roi * roi_w)
+                    yc_px = py1 + (yc_roi * roi_h)
+                    w_px = w_roi * roi_w
+                    h_px = h_roi * roi_h
+                    
+                    xc = xc_px / img_w
+                    yc = yc_px / img_h
+                    w = w_px / img_w
+                    h = h_px / img_h
+                    new_boxes.append(BoundingBox(float(xc), float(yc), float(w), float(h), class_id=0, is_auto=True))
+                    
+        if not new_boxes:
+            return
             
-            new_box = BoundingBox(float(xc), float(yc), float(w), float(h), class_id=0, is_auto=True)
-            
+        new_count = 0
+        for new_box in new_boxes:
             # Check overlap against all existing boxes
             is_overlap = False
             for exist_box in self.boxes:
@@ -1836,6 +1883,7 @@ class AnnotationApp:
         if self.yolo_model is not None and getattr(self, 'loaded_model_name', None) != selected_model:
             print(f"[INFO] Switching model to {selected_model}")
             self.yolo_model = None
+            self.sahi_model = None
 
         if self.yolo_model is None:
             self.status.config(text=f" Loading YOLO model: {selected_model}...")
@@ -1852,42 +1900,81 @@ class AnnotationApp:
                     
                 print(f"[INFO] Lazy-loading model from: {model_path}")
                 self.yolo_model = YOLO(model_path)
+                
+                try:
+                    from sahi import AutoDetectionModel
+                    self.sahi_model = AutoDetectionModel.from_pretrained(
+                        model_type="yolov8",
+                        model_path=str(model_path),
+                        confidence_threshold=conf_val,
+                        device="cuda:0",
+                    )
+                except Exception as e:
+                    print(f"[WARN] Failed to load SAHI model: {e}")
+                    self.sahi_model = None
+                    
                 self.loaded_model_name = selected_model
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to load YOLO: {e}")
                 self.status.config(text=" Model load failed")
                 return
-
-        self.status.config(text=f" Running inference at conf {conf_val}...")
-        self.root.update()
         
         img_path = str(self.image_paths[self.current_idx])
-        results = self.yolo_model.predict(
-            source=img_path,
-            conf=conf_val,
-            iou=iou_val,
-            agnostic_nms=True,
-            imgsz=1024,
-            max_det=5000,
-            device="0", # Keep it on GPU for speed
-            verbose=False
-        )
+        use_sahi = hasattr(self, 'use_sahi_var') and self.use_sahi_var.get()
+        new_boxes = []
         
-        if not results: return
-        
-        boxes_data = results[0].boxes
-        if not boxes_data:
-            self.status.config(text=" No new boxes found by YOLO.")
+        if use_sahi and getattr(self, 'sahi_model', None) is not None:
+            self.status.config(text=f" Running SAHI inference at conf {conf_val}...")
+            self.root.update()
+            self.sahi_model.confidence_threshold = conf_val
+            
+            from sahi.predict import get_sliced_prediction
+            results = get_sliced_prediction(
+                img_path,
+                self.sahi_model,
+                slice_height=512,
+                slice_width=512,
+                overlap_height_ratio=0.2,
+                overlap_width_ratio=0.2,
+                verbose=0
+            )
+            
+            if results.object_prediction_list:
+                img_w, img_h = self.orig_pil_img.size
+                for pred in results.object_prediction_list:
+                    bbox = pred.bbox
+                    xc = (bbox.minx + bbox.maxx) / 2.0 / img_w
+                    yc = (bbox.miny + bbox.maxy) / 2.0 / img_h
+                    w = (bbox.maxx - bbox.minx) / img_w
+                    h = (bbox.maxy - bbox.miny) / img_h
+                    new_boxes.append(BoundingBox(float(xc), float(yc), float(w), float(h), class_id=0, is_auto=True))
+        else:
+            self.status.config(text=f" Running inference at conf {conf_val}...")
+            self.root.update()
+            
+            results = self.yolo_model.predict(
+                source=img_path,
+                conf=conf_val,
+                iou=iou_val,
+                agnostic_nms=True,
+                imgsz=1024,
+                max_det=5000,
+                device="0", 
+                verbose=False
+            )
+            
+            if results and results[0].boxes:
+                for box_data in results[0].boxes:
+                    xywhn = box_data.xywhn[0].cpu().numpy()
+                    xc, yc, w, h = xywhn
+                    new_boxes.append(BoundingBox(float(xc), float(yc), float(w), float(h), class_id=0, is_auto=True))
+                    
+        if not new_boxes:
+            self.status.config(text=" No new boxes found.")
             return
-            
+
         new_count = 0
-        
-        for box_data in boxes_data:
-            xywhn = box_data.xywhn[0].cpu().numpy()
-            xc, yc, w, h = xywhn
-            
-            new_box = BoundingBox(float(xc), float(yc), float(w), float(h), class_id=0, is_auto=True)
-            
+        for new_box in new_boxes:
             # Filter: Check overlap against all existing boxes
             is_overlap = False
             for exist_box in self.boxes:
@@ -2370,6 +2457,8 @@ class AnnotationApp:
                 self.smart_recount_var.set(config["smart_recount"])
             if "force_recount" in config and hasattr(self, 'force_recount_var'):
                 self.force_recount_var.set(config["force_recount"])
+            if "use_sahi" in config and hasattr(self, 'use_sahi_var'):
+                self.use_sahi_var.set(config["use_sahi"])
             if "iou" in config and hasattr(self, 'iou_entry'):
                 self.iou_entry.delete(0, tk.END)
                 self.iou_entry.insert(0, str(config["iou"]))
@@ -2421,6 +2510,8 @@ class AnnotationApp:
             updates["smart_recount"] = self.smart_recount_var.get()
         if hasattr(self, 'force_recount_var'):
             updates["force_recount"] = self.force_recount_var.get()
+        if hasattr(self, 'use_sahi_var'):
+            updates["use_sahi"] = self.use_sahi_var.get()
         if hasattr(self, 'iou_entry'):
             updates["iou"] = self.iou_entry.get()
         if hasattr(self, 'auto_snap'):

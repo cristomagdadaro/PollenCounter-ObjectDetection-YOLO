@@ -81,6 +81,7 @@ def process_image(img_path, label_path, out_img_dir, out_lbl_dir, slice_size, ov
     if not x_starts: x_starts = [0]
 
     saved_slices = 0
+    skipped_slices = 0
     
     for y in y_starts:
         for x in x_starts:
@@ -105,13 +106,20 @@ def process_image(img_path, label_path, out_img_dir, out_lbl_dir, slice_size, ov
                 base_name = img_path.stem
                 slice_name = f"{base_name}_{x}_{y}"
                 
-                cv2.imwrite(str(out_img_dir / f"{slice_name}.jpg"), crop)
-                with open(out_lbl_dir / f"{slice_name}.txt", "w") as f:
+                out_img_path = out_img_dir / f"{slice_name}.jpg"
+                out_lbl_path = out_lbl_dir / f"{slice_name}.txt"
+                
+                if out_img_path.exists() and out_lbl_path.exists():
+                    skipped_slices += 1
+                    continue
+                
+                cv2.imwrite(str(out_img_path), crop)
+                with open(out_lbl_path, "w") as f:
                     f.write("\n".join(slice_boxes) + "\n")
                 
                 saved_slices += 1
                 
-    return saved_slices
+    return saved_slices, skipped_slices
 
 def main():
     parser = argparse.ArgumentParser(description="Slice YOLO dataset into overlapping patches.")
@@ -126,6 +134,7 @@ def main():
     out_dir = Path(args.output)
     
     total_slices = 0
+    total_skipped = 0
     for split in ["train", "val"]:
         in_img_dir = in_dir / "images" / split
         in_lbl_dir = in_dir / "labels" / split
@@ -145,10 +154,11 @@ def main():
             if img_path.suffix.lower() not in [".jpg", ".jpeg", ".png", ".bmp"]:
                 continue
             lbl_path = in_lbl_dir / f"{img_path.stem}.txt"
-            slices = process_image(img_path, lbl_path, out_img_dir, out_lbl_dir, args.slice_size, args.overlap, args.min_area)
+            slices, skipped = process_image(img_path, lbl_path, out_img_dir, out_lbl_dir, args.slice_size, args.overlap, args.min_area)
             total_slices += slices
+            total_skipped += skipped
             
-    print(f"\n[SUCCESS] Generated {total_slices} patched images in {out_dir}")
+    print(f"\n[SUCCESS] Generated {total_slices} new patched images (Skipped {total_skipped} existing) in {out_dir}")
 
 if __name__ == "__main__":
     main()
