@@ -48,6 +48,9 @@ def run_inference(
     box_opacity: float = 0.3,
     progress_cb=None,
     log_cb=None,
+    use_sahi: bool = False,
+    sahi_model=None,
+    sahi_slice_size: int = 512,
 ):
     """Run YOLO inference in either 'Count & Analyze' or 'Auto-Annotate' mode."""
     summary_rows: list[dict] = []
@@ -76,13 +79,34 @@ def run_inference(
             continue
         img_h, img_w = img.shape[:2]
 
-        results = model.predict(
-            source=str(img_path), conf=conf, iou=iou, agnostic_nms=True,
-            imgsz=imgsz, device=device, max_det=5000, verbose=False,
-        )
-        boxes = results[0].boxes
-        n_detections = len(boxes)
-        confidences = boxes.conf.cpu().tolist() if n_detections > 0 else []
+        if use_sahi and sahi_model is not None:
+            from sahi.predict import get_sliced_prediction
+            sahi_result = get_sliced_prediction(
+                str(img_path),
+                sahi_model,
+                slice_height=sahi_slice_size,
+                slice_width=sahi_slice_size,
+                overlap_height_ratio=0.2,
+                overlap_width_ratio=0.2,
+                postprocess_type="NMM",
+                postprocess_match_metric="IOU",
+                postprocess_match_threshold=iou,
+            )
+            obj_list = sahi_result.object_prediction_list
+            n_detections = len(obj_list)
+            confidences = [obj.score.value for obj in obj_list] if n_detections > 0 else []
+            xyxy_list = [[obj.bbox.minx, obj.bbox.miny, obj.bbox.maxx, obj.bbox.maxy] for obj in obj_list]
+            cls_ids = [obj.category.id for obj in obj_list]
+        else:
+            results = model.predict(
+                source=str(img_path), conf=conf, iou=iou, agnostic_nms=True,
+                imgsz=imgsz, device=device, max_det=5000, verbose=False,
+            )
+            boxes = results[0].boxes
+            n_detections = len(boxes)
+            confidences = boxes.conf.cpu().tolist() if n_detections > 0 else []
+            xyxy_list = boxes.xyxy.cpu().tolist() if n_detections > 0 else []
+            cls_ids = boxes.cls.cpu().tolist() if n_detections > 0 else []
 
         if mode == "Count & Analyze":
             # ── Count mode ───────────────────────────────────────────
@@ -98,7 +122,7 @@ def run_inference(
             })
 
             if n_detections > 0:
-                for det_idx, (box, conf_val) in enumerate(zip(boxes.xyxy.cpu().tolist(), confidences)):
+                for det_idx, (box, conf_val) in enumerate(zip(xyxy_list, confidences)):
                     x1, y1, x2, y2 = box
                     detail_rows.append({
                         "filename": img_path.name,
@@ -114,7 +138,7 @@ def run_inference(
                 annotated_img = img.copy()
                 if n_detections > 0:
                     box_overlay = img.copy()
-                    for box in boxes.xyxy.cpu().tolist():
+                    for box in xyxy_list:
                         x1, y1, x2, y2 = box
                         color = (random.randint(50, 255), random.randint(100, 255), random.randint(50, 255))
                         cv2.rectangle(box_overlay, (int(x1), int(y1)), (int(x2), int(y2)), color=color, thickness=3)
@@ -136,10 +160,7 @@ def run_inference(
             label_path = aa_lbl_dir / f"{img_path.stem}.txt"
             with open(label_path, "w") as f:
                 if n_detections > 0:
-                    cls_ids = boxes.cls.cpu().tolist()
-                    xyxy = boxes.xyxy.cpu().tolist()
-
-                    for cls_id, box in zip(cls_ids, xyxy):
+                    for cls_id, box in zip(cls_ids, xyxy_list):
                         x1, y1, x2, y2 = map(int, box)
                         pad_x = int((x2 - x1) * 0.3)
                         pad_y = int((y2 - y1) * 0.3)
@@ -393,6 +414,8 @@ def run_gui():
     var_imgsz = tk.StringVar(value=str(saved.get("imgsz", "1024")))
     var_device = tk.StringVar(value=str(saved.get("device", "0")))
     var_opacity = tk.DoubleVar(value=float(saved.get("opacity", 0.3)))
+    var_use_sahi = tk.BooleanVar(value=saved.get("use_sahi", False))
+    var_sahi_slice = tk.StringVar(value=str(saved.get("sahi_slice", "512")))
 
     def make_row(parent, label_text, var, browse_func=None, is_combo=False, combo_vals=None):
         frame = tk.Frame(parent, bg=BG)
@@ -417,6 +440,14 @@ def run_gui():
     make_row(root, "IoU Threshold:", var_iou)
     make_row(root, "Image Size:", var_imgsz)
     make_row(root, "Device:", var_device)
+
+    # SAHI Frame
+    frame_sahi = tk.Frame(root, bg=BG)
+    frame_sahi.pack(fill=tk.X, padx=20, pady=5)
+    tk.Label(frame_sahi, text="SAHI (High Acc):", font=FONT_LABEL, bg=BG, fg=FG, width=15, anchor="w").pack(side=tk.LEFT)
+    tk.Checkbutton(frame_sahi, text="Enable Sliced Inference", variable=var_use_sahi, bg=BG, fg=FG, activebackground=BG, selectcolor=BG).pack(side=tk.LEFT)
+    tk.Label(frame_sahi, text="Slice Size:", font=FONT_LABEL, bg=BG, fg=FG).pack(side=tk.LEFT, padx=(10, 5))
+    tk.Entry(frame_sahi, textvariable=var_sahi_slice, font=FONT_INPUT, bg="#F0F0F0", fg="#000000", width=8, bd=0).pack(side=tk.LEFT, ipady=4)
 
     frame_op = tk.Frame(root, bg=BG)
     frame_op.pack(fill=tk.X, padx=20, pady=5)
@@ -494,6 +525,8 @@ def run_gui():
             "imgsz": var_imgsz.get(),
             "device": var_device.get(),
             "opacity": var_opacity.get(),
+            "use_sahi": var_use_sahi.get(),
+            "sahi_slice": var_sahi_slice.get(),
         })
 
         def _thread():
@@ -508,11 +541,23 @@ def run_gui():
                 weight_path = str(PROJECT_ROOT / "runs" / "detect" / var_weights.get() / "weights" / "best.pt")
                 model = YOLO(weight_path)
 
+                use_sahi = var_use_sahi.get()
+                sahi_model = None
+                if use_sahi:
+                    from sahi import AutoDetectionModel
+                    sahi_model = AutoDetectionModel.from_pretrained(
+                        model_type="yolov8",
+                        model_path=weight_path,
+                        confidence_threshold=float(var_conf.get()),
+                        device=var_device.get(),
+                    )
+
                 summary = run_inference(
                     mode=var_mode.get(), model=model, image_paths=images,
                     out_dir=out_dir, conf=float(var_conf.get()), iou=float(var_iou.get()), imgsz=int(var_imgsz.get()),
                     device=var_device.get(),
                     box_opacity=float(var_opacity.get()), progress_cb=progress_cb,
+                    use_sahi=use_sahi, sahi_model=sahi_model, sahi_slice_size=int(var_sahi_slice.get())
                 )
 
                 root.after(0, lambda: log_cb(f"\nDone! Processed {len(images)} images.\nSaved to {out_dir}"))

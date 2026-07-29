@@ -8,7 +8,7 @@
 optimizer: SGD         # AdamW handles small datasets better than SGD
 lr0: 0.01              # Initial learning rate (lower than default to prevent NaN with AdamW)
 amp: false              # Disable mixed precision to prevent NaN on certain GPUs
-patience: 150            # Early stopping after N epochs without improvement
+patience: 50            # Early stopping after N epochs without improvement
 dropout: 0.25           # Randomly drops 20% of neurons to prevent overfitting
 label_smoothing: 0.1    # Targets 90% confidence instead of 100%
 box: 0.05               # Lower box loss weight — prioritize detection over tight boxes
@@ -17,7 +17,7 @@ box: 0.05               # Lower box loss weight — prioritize detection over ti
 degrees: 180.0          # Random rotation up to 180 degrees (pollen has no fixed orientation)
 fliplr: 0.5             # 50% horizontal flip
 flipud: 0.5             # 50% vertical flip
-scale: 0.5              # Random scale +/- 50%
+scale: 0.1              # Random scale +/- 10%
 translate: 0.3          # Random shift up to 30%
 hsv_h: 0.08             # Hue shift
 hsv_s: 0.6              # Saturation shift
