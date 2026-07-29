@@ -42,6 +42,11 @@ This project has evolved through continuous testing to optimise accuracy. Below 
 - If you feed it an image with a massive 200x200 pixel pollen grain, it will ignore it because it's "too big to be pollen."
 - **Solution:** If you intend to use different microscope magnifications, you must increase the `scale` augmentation in `training.yaml` to force the AI to learn pollen at all zoom levels!
 
+### 9. Patch-Based Training & SAHI (The Breakthrough)
+- **The Problem:** Compressing massive 2048x2048 microscope images down to standard YOLO sizes (1024x1024) permanently destroys microscopic features, capping accuracy regardless of dataset size or augmentation.
+- **The Solution:** By using **Slicing Aided Hyper Inference (SAHI)** and **Patch-Based Training**, we slice the raw high-resolution images into overlapping 512x512 patches (`scripts/slice_dataset.py`). 
+- **The Result:** Training on these unscaled patches caused an explosive jump in accuracy (from ~70% to **96.3% mAP50** in the `i19` model). During inference, the GUI physically slices new images on the fly and stitches the bounding boxes back together using OpenCV.
+
 ---
 
 ##  Training History & Major Milestones

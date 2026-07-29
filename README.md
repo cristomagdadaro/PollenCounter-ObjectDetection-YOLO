@@ -9,7 +9,8 @@
 - **AI-Assisted Smart Annotation:** Rapidly build your dataset using a GUI that features auto-snapping bounding boxes and an *Active Learning* pipeline (where the AI pre-annotates images for you to simply approve or correct).
 - **Microscopy-Optimized Workflow:** Navigate massive, dense slide images easily with Quadrant-View slicing and targeted Regional Recounting for highly clustered areas.
 - **Robust Model Training:** Train custom YOLO models with advanced features like K-Fold cross-validation for small datasets, automatic data augmentation, and easy run-resuming.
-- **Batch Processing Utilities:** Apply powerful operations—like automatic overlapping box cleanup (NMS), edge-snapping, and scaling—across your entire dataset with a single click.
+- **SAHI (Slicing Aided Hyper Inference):** Built-in support for Patch-Based Training and Sliced Inference to seamlessly detect microscopic pollen grains on massive, ultra-high-resolution microscopy imagery without downscaling.
+- **Batch Processing Utilities:** Apply powerful operations—like automatic overlapping box cleanup (NMS), edge-snapping, dataset slicing, and scaling—across your entire dataset with a single click.
 
 
 ## Environment Setup
@@ -72,6 +73,14 @@ python scripts/inference.py
 **Operation Modes:**
 - **Count & Analyze:** Automatically counts all pollen grains, draws bounding boxes on the output images, and exports a final `.xlsx` spreadsheet report.
 - **Auto-Annotate:** Pre-annotates raw images and exports YOLO `.txt` labels to be later imported into `annotate.py` for Active Learning.
+- **Sliced Inference (SAHI):** Enable SAHI inside the GUI to physically slice massive images into `512x512` patches during inference, completely eliminating accuracy loss from YOLO image downscaling.
+
+### 4. Patch-Based Training Preparation (`slice_dataset.py`)
+To train your model to identify microscopic details perfectly, use this utility to generate a high-resolution, patch-based dataset.
+```bash
+python scripts/slice_dataset.py
+```
+This physically crops your raw high-res images and their bounding box `.txt` labels into overlapping `512x512` patches, saving them into a `datasets_sliced` directory. You can then train a wildly accurate model by pointing the trainer to `config/pollen_dataset_sliced.yaml`.
 
 
 ##  Interactive GUI Tools
