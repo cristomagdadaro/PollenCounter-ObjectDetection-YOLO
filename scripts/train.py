@@ -185,20 +185,37 @@ def _run_standard_training(args, data_path):
 
     # ── Auto-rename folder: i{N}_{trainCount}T_{valCount}V_{MODEL}_{P}P_{R}R_{mAP50}A
     try:
-        dataset_root = Path(__file__).parent.parent / "datasets"
-        train_txt = dataset_root / "train.txt"
-        val_txt = dataset_root / "val.txt"
-        train_count = sum(1 for _ in open(train_txt)) if train_txt.exists() else 0
-        val_count = sum(1 for _ in open(val_txt)) if val_txt.exists() else 0
-
-        model_name = Path(args.model).stem.upper()
-
         if hasattr(metrics, "box"):
             p = int(metrics.box.mp * 100)
             r = int(metrics.box.mr * 100)
             map50 = int(metrics.box.map50 * 100)
         else:
             p, r, map50 = 0, 0, 0
+            
+        # Release Windows file locks held by Ultralytics
+        import time, gc
+        try:
+            del val_model
+            del metrics
+            gc.collect()
+            time.sleep(2)
+        except Exception:
+            pass
+
+        train_count, val_count = 0, 0
+        try:
+            with open(data_path, "r") as f:
+                data_cfg = yaml.safe_load(f)
+            train_txt = Path(data_cfg.get("train", ""))
+            val_txt = Path(data_cfg.get("val", ""))
+            if train_txt.exists():
+                train_count = sum(1 for _ in open(train_txt))
+            if val_txt.exists():
+                val_count = sum(1 for _ in open(val_txt))
+        except Exception:
+            pass
+
+        model_name = Path(args.model).stem.upper()
 
         detect_dir = Path(args.project)
         iteration = len([d for d in detect_dir.iterdir() if d.is_dir() and d.name.startswith("i")]) + 1
@@ -208,9 +225,14 @@ def _run_standard_training(args, data_path):
         new_dir = detect_dir / new_name
 
         if old_dir.exists():
-            os.rename(str(old_dir), str(new_dir))
-            print(f"\n[INFO] Renamed training folder to: {new_name}")
-            args.name = new_name
+            for _ in range(5):
+                try:
+                    os.rename(str(old_dir), str(new_dir))
+                    print(f"\n[INFO] Renamed training folder to: {new_name}")
+                    args.name = new_name
+                    break
+                except PermissionError:
+                    time.sleep(2)
     except Exception as e:
         print(f"\n[WARNING] Could not automatically rename folder: {e}")
 
