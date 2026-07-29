@@ -47,6 +47,11 @@ This project has evolved through continuous testing to optimise accuracy. Below 
 - **The Solution:** By using **Slicing Aided Hyper Inference (SAHI)** and **Patch-Based Training**, we slice the raw high-resolution images into overlapping 512x512 patches (`scripts/slice_dataset.py`). 
 - **The Result:** Training on these unscaled patches caused an explosive jump in accuracy (from ~70% to **96.3% mAP50** in the `i19` model). During inference, the GUI physically slices new images on the fly and stitches the bounding boxes back together using OpenCV.
 
+### 10. The P2 Architecture (Micro-Object Detection)
+- **The Problem:** Even with patches, standard YOLO architecture (`P3, P4, P5`) shrinks feature maps by 8x. A tiny 20px pollen grain becomes a 2.5px smudge, making it impossible for the AI to draw a tight box (low `mAP50-95`).
+- **The Solution:** We created a custom `config/yolo11s-p2.yaml` architecture that adds a high-resolution **P2 layer** (stride 4, or 4x shrinkage). This acts like a magnifying glass for the neural network.
+- **VRAM Warning:** The P2 layer creates massive intermediate feature maps that consume massive amounts of VRAM. An RTX 3090 (24GB) will easily crash if `batch` is set to auto or 24. **For P2 training on 24GB VRAM, `batch` MUST be hardcoded to 16 maximum** (8 or 12 are safer) in `training.yaml`.
+
 ---
 
 ##  Training History & Major Milestones
@@ -79,6 +84,7 @@ Below is a complete matrix of all recorded model iterations (`i1` to `i17`), hig
 | `i17` (Jul 28)| YOLO11N | 221 / 15 | 1024 / 4 / 256 | 82.4% | 69.0% | 72.1% | *`i17` Model (SGD). Switched optimizer to SGD (`lr0=0.01`). Model oscillated violently but eventually found a massive global minimum at Epoch 106, scoring **72.1% mAP50** and an unprecedented **82.4% Precision**. SGD + Bootcamp Augmentations is the current winning formula!* |
 | `i18` (Jul 28)| YOLO11N | 252 / 16 | 1024 / 4 / 263 | 82.8% | 70.0% | 70.4% | *`i18` Model. Reverted workers to 2 for thermal limits. Continued dataset scaling pushed precision to 82.8% but mAP50 settled at 70.4%.* |
 | `i19` (Jul 29)| YOLO11N | 252 / 16 | 512 / 4 / 74 | 93.5% | 95.6% | 96.3% | *`i19` Model (Patch-Based Training). Sliced the dataset into 6,000+ 512x512 patches. Set `imgsz=512`, `patience=50`, `scale=0.1`. Accuracy exploded to a staggering **96.3% mAP50**, proving that processing large images without downscaling fixes the small-object detection issue perfectly!* |
+| `i20` (Jul 29)| YOLO11S | 260 / 16 | 512 / Auto / 500 | ~94% | ~95% | 97.5% | *Upgraded to YOLO11S (Small) and heavily increased augmentations (`dropout=0.3, scale=0.3, mixup=0.2`). Added capacity allowed mAP50 to hit **97.5%**, but `mAP50-95` hovered around 45% due to architectural limits on tiny objects.* |
 
 *Remember to update this table every time a new dataset batch is annotated or a major training setting is changed!*
 

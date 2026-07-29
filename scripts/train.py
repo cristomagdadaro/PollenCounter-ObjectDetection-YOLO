@@ -156,17 +156,19 @@ def _run_standard_training(args, data_path):
     print(f"       Device  : {args.device}")
     print()
 
-    model.train(
-        data=str(data_path),
-        epochs=args.epochs,
-        imgsz=args.imgsz,
-        batch=args.batch,
-        device=args.device,
-        project=args.project,
-        name=args.name,
-        exist_ok=True,
-        **hyp,  # Unpack all hyperparameters from training.yaml
-    )
+    train_kwargs = {
+        "data": str(data_path),
+        "epochs": args.epochs,
+        "imgsz": args.imgsz,
+        "batch": args.batch,
+        "device": args.device,
+        "project": args.project,
+        "name": args.name,
+        "exist_ok": True,
+    }
+    train_kwargs.update(hyp)  # Let yaml hyperparameters override CLI defaults
+    
+    model.train(**train_kwargs)
 
     best_weights = Path(args.project) / args.name / "weights" / "best.pt"
     print("\n" + "=" * 60)
