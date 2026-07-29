@@ -133,6 +133,17 @@ def _run_standard_training(args, data_path):
     else:
         print(f"[INFO] Loading base model: {args.model}")
         model = YOLO(args.model)
+        
+        # If passing a custom YAML architecture, attempt to load pretrained weights
+        if args.model.endswith(".yaml"):
+            import re
+            match = re.search(r'yolo11([nsmlx])', Path(args.model).stem, re.IGNORECASE)
+            if match:
+                scale = match.group(1).lower()
+                pretrained = Path(f"pretrained_models/yolo11{scale}.pt")
+                if pretrained.exists():
+                    print(f"[INFO] Transferring pretrained weights from {pretrained} to custom architecture...")
+                    model.load(str(pretrained))
 
     # Load hyperparameters from config/training.yaml
     hyp = _load_training_config()

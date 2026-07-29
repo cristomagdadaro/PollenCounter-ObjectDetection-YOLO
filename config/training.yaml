@@ -9,21 +9,21 @@ optimizer: SGD         # AdamW handles small datasets better than SGD
 lr0: 0.01              # Initial learning rate (lower than default to prevent NaN with AdamW)
 amp: false              # Disable mixed precision to prevent NaN on certain GPUs
 patience: 100            # Early stopping after N epochs without improvement
-dropout: 0.25           # Randomly drops 20% of neurons to prevent overfitting
+dropout: 0.30           # Randomly drops 30% of neurons to prevent overfitting
 label_smoothing: 0.1    # Targets 90% confidence instead of 100%
-box: 0.05               # Lower box loss weight — prioritize detection over tight boxes
+box: 0.1               # Lower box loss weight — prioritize detection over tight boxes
 
 # ── Augmentation ─────────────────────────────────────────────────────
 degrees: 180.0          # Random rotation up to 180 degrees (pollen has no fixed orientation)
 fliplr: 0.5             # 50% horizontal flip
 flipud: 0.5             # 50% vertical flip
-scale: 0.1              # Random scale +/- 10%
+scale: 0.3             # Random scale +/- 30%
 translate: 0.3          # Random shift up to 30%
-hsv_h: 0.08             # Hue shift
-hsv_s: 0.6              # Saturation shift
-hsv_v: 0.6              # Brightness shift
+hsv_h: 0.1             # Hue shift
+hsv_s: 0.8              # Saturation shift
+hsv_v: 0.8              # Brightness shift
 mosaic: 1.0             # Stitch 4 images together (100% chance)
-mixup: 0.1              # Blend 2 images (10% chance)
+mixup: 0.2              # Blend 2 images (20% chance)
 copy_paste: 0.0         # Disabled
 close_mosaic: 0         # Keep mosaic active until the end of training
 
