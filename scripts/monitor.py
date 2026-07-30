@@ -78,10 +78,10 @@ class TrainingMonitor(tk.Tk):
         self.lbl_epoch = ttk.Label(sidebar, text="Epoch: 0 / 0")
         self.lbl_epoch.pack(anchor="w", pady=2)
         
-        self.lbl_time_left = ttk.Label(sidebar, text="Time Left: N/A", foreground="#00B0FF")
+        self.lbl_time_left = ttk.Label(sidebar, text="Max ETA: N/A", foreground="#00B0FF")
         self.lbl_time_left.pack(anchor="w", pady=2)
         
-        self.lbl_early_stop = ttk.Label(sidebar, text="Early Stop Predicted: N/A", foreground="#FF9800")
+        self.lbl_early_stop = ttk.Label(sidebar, text="Stop ETA: N/A", foreground="#FF9800")
         self.lbl_early_stop.pack(anchor="w", pady=(2, 10))
         
         self.lbl_best_epoch = ttk.Label(sidebar, text="Best Epoch: 0", font=("Segoe UI", 12, "bold"), foreground="#FFEA00")
@@ -316,8 +316,10 @@ class TrainingMonitor(tk.Tk):
             recall = df['metrics/recall(B)'] * 100
             box_loss = df['train/box_loss']
             
-            # Find the best epoch based on mAP50 (the metric YOLO optimizes best.pt around)
-            best_idx = map50.idxmax()
+            # Find the best epoch based on YOLO's actual fitness metric (0.1 * mAP50 + 0.9 * mAP50-95)
+            # This is exactly how YOLO determines best.pt internally
+            fitness = (0.1 * map50) + (0.9 * map50_95)
+            best_idx = fitness.idxmax()
             best_epoch_num = epochs.iloc[best_idx]
             
             # Compute dynamic refresh rate & time left
@@ -326,26 +328,39 @@ class TrainingMonitor(tk.Tk):
                 if pd.notna(last_epoch_time) and last_epoch_time > 0:
                     self.refresh_interval = max(5, int(last_epoch_time))
                     
+                    # Max Epoch ETA
                     epochs_left = self.max_epochs - epochs.iloc[-1]
                     if epochs_left > 0:
                         secs_left = epochs_left * last_epoch_time
                         m, s = divmod(int(secs_left), 60)
                         h, m = divmod(m, 60)
-                        self.lbl_time_left.config(text=f"Time Left: ~{h}h {m}m")
+                        self.lbl_time_left.config(text=f"Max ETA: ~{h}h {m}m")
                     else:
-                        self.lbl_time_left.config(text="Time Left: Finishing...")
+                        self.lbl_time_left.config(text="Max ETA: Finishing...")
+                        
+                    # Early Stop ETA
+                    if self.patience > 0:
+                        pred_stop = best_epoch_num + self.patience
+                        if pred_stop <= self.max_epochs:
+                            early_epochs_left = pred_stop - epochs.iloc[-1]
+                            if early_epochs_left > 0:
+                                early_secs = early_epochs_left * last_epoch_time
+                                em, es = divmod(int(early_secs), 60)
+                                eh, em = divmod(em, 60)
+                                self.lbl_early_stop.config(text=f"Stop ETA: ~{eh}h {em}m (@ Ep {pred_stop:.0f})")
+                            else:
+                                self.lbl_early_stop.config(text=f"Stop ETA: Imminent (@ Ep {pred_stop:.0f})")
+                        else:
+                            self.lbl_early_stop.config(text="Stop ETA: Unlikely (Past Max)")
+                    else:
+                        self.lbl_early_stop.config(text="Stop ETA: Disabled")
             else:
                 self.refresh_interval = 10
-            
-            # Predict Early Stop
-            if self.patience > 0:
-                pred_stop = best_epoch_num + self.patience
-                if pred_stop <= self.max_epochs:
-                    self.lbl_early_stop.config(text=f"Early Stop @ Ep {pred_stop:.0f}")
+                self.lbl_time_left.config(text="Max ETA: Calculating...")
+                if self.patience > 0:
+                    self.lbl_early_stop.config(text="Stop ETA: Calculating...")
                 else:
-                    self.lbl_early_stop.config(text="Early Stop: Unlikely")
-            else:
-                self.lbl_early_stop.config(text="Early Stop: Disabled")
+                    self.lbl_early_stop.config(text="Stop ETA: Disabled")
             
             # Update Sidebar
             self.lbl_epoch.config(text=f"Epoch: {epochs.iloc[-1] + 1:.0f} / {self.max_epochs}")

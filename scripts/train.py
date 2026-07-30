@@ -27,7 +27,6 @@ from ultralytics import YOLO
 
 from src.paths import PROJECT_ROOT, DATASET_YAML, DATASET_ROOT, TRAINING_YAML, DEFAULT_MODEL
 
-
 def _load_training_config() -> dict:
     """Load hyperparameters from config/training.yaml. Returns {} if missing."""
     if not TRAINING_YAML.exists():
@@ -35,7 +34,6 @@ def _load_training_config() -> dict:
         return {}
     with open(TRAINING_YAML, "r") as f:
         return yaml.safe_load(f) or {}
-
 
 def parse_args() -> argparse.Namespace:
     """Parse command-line arguments."""

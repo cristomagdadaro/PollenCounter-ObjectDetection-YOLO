@@ -5,10 +5,10 @@
 # These values are unpacked directly into model.train(**config).
 
 # ── Optimization ─────────────────────────────────────────────────────
-optimizer: AdamW    # AdamW handles small datasets better than SGD
-lr0: 0.001              # Initial learning rate (lower than default to prevent NaN with AdamW)
+optimizer: SGD    # Switched back to SGD
+lr0: 0.01               # SGD requires a much higher learning rate than AdamW! (0.01 instead of 0.001)
 amp: false              # Disable mixed precision to prevent NaN on certain GPUs
-batch: 32                # MUST stay at 20 to prevent P2 layer from crashing 24GB VRAM!
+batch: 32                # MUST stay at 16 to prevent P2 layer from crashing 24GB VRAM!
 patience: 50            # Early stopping after N epochs without improvement
 dropout: 0.30           # Randomly drops 30% of neurons to prevent overfitting
 label_smoothing: 0.1    # Targets 90% confidence instead of 100%
