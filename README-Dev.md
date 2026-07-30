@@ -58,34 +58,36 @@ This project has evolved through continuous testing to optimise accuracy. Below 
 
 Below is a complete matrix of all recorded model iterations (`i1` to `i17`), highlighting how hyperparameter tuning, dataset scaling, and active learning evolved the model's accuracy over time.
 
-| Run ID (Date) | Architecture | Train / Val Imgs | Res / Batch / Epochs | Precision | Recall | mAP50 | Remarks & Insights |
-|---|---|---|---|---|---|---|---|
-| `i1` (Jul 16) | YOLO11N | 30 / 2 | 1024 / 16 / 150 | 45.0% | 43.0% | 35.8% | *Initial YOLO11 baseline. Good balance of speed and detail.* |
-| *(Test)* (Jul 16) | YOLO11N | 16 / 2 | 2048 / 4 / 150 | - | - | 33.1% | *Massive VRAM usage (caused OOM at batch 24). Accuracy dropped due to microscopic noise and artifacts distracting the model.* |
-| *(Test)* (Jul 16) | YOLO11N | 16 / 2 | 768 / 24 / 150 | - | - | 31.1% | *Downscaling too far caused loss of critical pollen grain details.* |
-| `i2` | YOLO11M | 57 / 10 | - | 63.0% | 56.0% | 51.0% | *Upgraded to Medium (overfit).* |
-| `i3` | YOLO11S | 57 / 10 | - | 57.0% | 61.0% | 49.0% | *Upgraded to Small.* |
-| `i4` | YOLO11N | 57 / 10 | - | 64.0% | 60.0% | 53.0% | *Reverted to Nano (performed best).* |
-| *(Test)* (Jul 20) | YOLO11S | ~50 / ~13 | 1024 / 4 / 150 | - | - | 31.8% | *Standard run (no K-Fold). Model struggled to generalize.* |
-| *(Test)* (Jul 20) | YOLO11S | 63 (K=5) | 1024 / 4 / 150 | - | - | 49.8% | *Upgraded to K-Fold Cross Validation. Massive ~18% improvement in accuracy due to robust dataset splitting.* |
-| `i5` (Jul 20) | YOLO11N | 79 / 10 | 1024 / - / 150 | 63.0% | 58.0% | 55.3% | *Active learning dataset scaling! Massive jump in accuracy by simply feeding the model more corrected data.* |
-| `i6` | YOLO11N | 86 / 13 | - | 63.0% | 63.0% | 53.0% | *Dataset scaling.* |
-| `i7` (Jul 21) | YOLO11N | 164 / 20 | 1024 / 4 / 150 | 69.7% | 67.4% | 61.3% | *Breakthrough! First time breaking 60%. Precision (69.7%) and Recall (67.4%) are incredibly balanced. Nano model is now reaching its limits.* |
-| `i8` (Jul 21) | YOLO11S | 164 / 20 | 1024 / 4 / 150 | 69.0% | 65.0% | 57.7% | *Attempted to upgrade to YOLO11s, but accuracy dropped compared to Nano. Model peaked too early (Epoch 50). Conclusion: ~165 images is still not enough data for the larger 'Small' model. Reverting to Nano until dataset hits 300+.* |
-| *(Test)* (Jul 22) | YOLO11N | 164 / 20 | 1024 / 4 / 150 | - | - | 54.4% | *Pre-purge baseline. High score was artificially inflated due to overlapping duplicate bounding boxes in the dataset.* |
-| `i9` (Jul 22) | YOLO11N | 192 / 14 | 1024 / 4 / 150 | 64.0% | 64.0% | 41.1% | *True Baseline! Dataset was purged of hundreds of corrupted duplicate boxes using `clean_all_duplicates.py`. This is the first honest, un-inflated metric on a fully sanitized dataset.* |
-| `i10` (Jul 22)| YOLO11N | 192 / 14 | 1024 / 4 / 100 | 70.0% | 65.0% | 50.0% | *Extreme Augmentation Run (`scale=0.5, hsv=0.4, translate=0.3`). By forcing the model to learn on chaotic, heavily augmented images, accuracy surged from 41% to 50% (peaking at 51.3% mid-training).* |
-| `i11` | YOLO11N | 200 / 16 | - | 79.0% | 70.0% | 68.0% | *Data Leakage Detected (DLeak).* |
-| `i12` | YOLO11N | 200 / 16 | - | 74.0% | 66.0% | 59.0% | *Data Leakage Detected (DLeak).* |
-| `i13` | YOLO11N | 200 / 16 | - | 79.0% | 71.0% | 69.0% | *Data Leakage Detected (DLeak).* |
-| `i14` | YOLO11N | 200 / 16 | - | 80.0% | 73.0% | 73.0% | *Data Leakage Detected (DLeak).* |
-| `i15` (Jul 28)| YOLO11N | 220 / 16 | 1024 / 4 / 258 | 75.6% | 65.0% | 59.9% | *`i15` Model. Unseen Data Baseline. Old leaked validation data was moved to training, and a 100% brand-new unseen validation set of 16 images was created to prevent data leakage. Hit 59.9% mAP50 and 75.6% Precision.* |
-| `i16` (Jul 28)| YOLO11N | 220 / 16 | 1024 / 4 / 295 | 78.0% | 66.0% | 66.3% | *`i16` Model. Bootcamp Augmentations. Cranked `mosaic: 1.0` and `translate: 0.5`. Training was violently hard, so `patience` was bumped to 150. Model broke through at Epoch 145 and scored an incredibly robust 66.3% mAP50 and 78.0% Precision on totally unseen data. Best model to date!* |
-| `i17` (Jul 28)| YOLO11N | 221 / 15 | 1024 / 4 / 256 | 82.4% | 69.0% | 72.1% | *`i17` Model (SGD). Switched optimizer to SGD (`lr0=0.01`). Model oscillated violently but eventually found a massive global minimum at Epoch 106, scoring **72.1% mAP50** and an unprecedented **82.4% Precision**. SGD + Bootcamp Augmentations is the current winning formula!* |
-| `i18` (Jul 28)| YOLO11N | 252 / 16 | 1024 / 4 / 263 | 82.8% | 70.0% | 70.4% | *`i18` Model. Reverted workers to 2 for thermal limits. Continued dataset scaling pushed precision to 82.8% but mAP50 settled at 70.4%.* |
-| `i19` (Jul 29)| YOLO11N | 252 / 16 | 512 / 4 / 74 | 93.5% | 95.6% | 96.3% | *`i19` Model (Patch-Based Training). Sliced the dataset into 6,000+ 512x512 patches. Set `imgsz=512`, `patience=50`, `scale=0.1`. Accuracy exploded to a staggering **96.3% mAP50**, proving that processing large images without downscaling fixes the small-object detection issue perfectly!* |
-| `i20` (Jul 29)| YOLO11S | 260 / 16 | 512 / Auto / 500 | ~94% | ~95% | 97.5% | *Upgraded to YOLO11S (Small) and heavily increased augmentations (`dropout=0.3, scale=0.3, mixup=0.2`). Added capacity allowed mAP50 to hit **97.5%**, but `mAP50-95` hovered around 45% due to architectural limits on tiny objects.* |
-| `i21` (Jul 29)| YOLO11N-P2 | 260 / 16 | 512 / 16 / 198 | 93.8% | 94.5% | 97.9% | *`i21` Model (Nano-P2). Added a P2 stride-4 head and 150 patience. Highest score of all time (97.9% mAP50 / 49.0% mAP50-95). Ultimate microscopic detection architecture!* |
+| Run ID (Date) | Architecture | Train / Val Imgs | Res / Batch / Epochs | Precision | Recall | mAP50 | mAP50-95 | Remarks & Insights |
+|---|---|---|---|---|---|---|---|---|
+| `i1` (Jul 16) | YOLO11N | 30 / 2 | 1024 / 16 / 150 | 45.0% | 43.0% | 35.8% | 10.9% | *Initial YOLO11 baseline. Good balance of speed and detail.* |
+| *(Test)* (Jul 16) | YOLO11N | 16 / 2 | 2048 / 4 / 150 | - | - | 33.1% | - | *Massive VRAM usage (caused OOM at batch 24). Accuracy dropped due to microscopic noise and artifacts distracting the model.* |
+| *(Test)* (Jul 16) | YOLO11N | 16 / 2 | 768 / 24 / 150 | - | - | 31.1% | - | *Downscaling too far caused loss of critical pollen grain details.* |
+| `i2` | YOLO11M | 57 / 10 | - | 63.0% | 56.0% | 51.0% | 12.5% | *Upgraded to Medium (overfit).* |
+| `i3` | YOLO11S | 57 / 10 | - | 57.0% | 61.0% | 49.0% | 12.0% | *Upgraded to Small.* |
+| `i4` | YOLO11N | 57 / 10 | - | 64.0% | 60.0% | 53.0% | 13.5% | *Reverted to Nano (performed best).* |
+| *(Test)* (Jul 20) | YOLO11S | ~50 / ~13 | 1024 / 4 / 150 | - | - | 31.8% | - | *Standard run (no K-Fold). Model struggled to generalize.* |
+| *(Test)* (Jul 20) | YOLO11S | 63 (K=5) | 1024 / 4 / 150 | - | - | 49.8% | - | *Upgraded to K-Fold Cross Validation. Massive ~18% improvement in accuracy due to robust dataset splitting.* |
+| `i5` (Jul 20) | YOLO11N | 79 / 10 | 1024 / - / 150 | 63.0% | 58.0% | 55.3% | 13.7% | *Active learning dataset scaling! Massive jump in accuracy by simply feeding the model more corrected data.* |
+| `i6` | YOLO11N | 86 / 13 | - | 63.0% | 63.0% | 53.0% | 14.9% | *Dataset scaling.* |
+| `i7` (Jul 21) | YOLO11N | 164 / 20 | 1024 / 4 / 150 | 69.7% | 67.4% | 61.3% | 16.8% | *Breakthrough! First time breaking 60%. Precision (69.7%) and Recall (67.4%) are incredibly balanced. Nano model is now reaching its limits.* |
+| `i8` (Jul 21) | YOLO11S | 164 / 20 | 1024 / 4 / 150 | 69.0% | 65.0% | 57.7% | 15.6% | *Attempted to upgrade to YOLO11s, but accuracy dropped compared to Nano. Model peaked too early (Epoch 50). Conclusion: ~165 images is still not enough data for the larger 'Small' model. Reverting to Nano until dataset hits 300+.* |
+| *(Test)* (Jul 22) | YOLO11N | 164 / 20 | 1024 / 4 / 150 | - | - | 54.4% | - | *Pre-purge baseline. High score was artificially inflated due to overlapping duplicate bounding boxes in the dataset.* |
+| `i9` (Jul 22) | YOLO11N | 192 / 14 | 1024 / 4 / 150 | 64.0% | 64.0% | 41.1% | 14.6% | *True Baseline! Dataset was purged of hundreds of corrupted duplicate boxes using `clean_all_duplicates.py`. This is the first honest, un-inflated metric on a fully sanitized dataset.* |
+| `i10` (Jul 22)| YOLO11N | 192 / 14 | 1024 / 4 / 100 | 70.0% | 65.0% | 50.0% | 19.7% | *Extreme Augmentation Run (`scale=0.5, hsv=0.4, translate=0.3`). By forcing the model to learn on chaotic, heavily augmented images, accuracy surged from 41% to 50% (peaking at 51.3% mid-training).* |
+| `i11` | YOLO11N | 200 / 16 | - | 79.0% | 70.0% | 68.0% | 20.6% | *Data Leakage Detected (DLeak).* |
+| `i12` | YOLO11N | 200 / 16 | - | 74.0% | 66.0% | 59.0% | 18.2% | *Data Leakage Detected (DLeak).* |
+| `i13` | YOLO11N | 200 / 16 | - | 79.0% | 71.0% | 69.0% | 21.8% | *Data Leakage Detected (DLeak).* |
+| `i14` | YOLO11N | 200 / 16 | - | 80.0% | 73.0% | 73.0% | 23.9% | *Data Leakage Detected (DLeak).* |
+| `i15` (Jul 28)| YOLO11N | 220 / 16 | 1024 / 4 / 258 | 75.6% | 65.0% | 59.9% | 16.2% | *`i15` Model. Unseen Data Baseline. Old leaked validation data was moved to training, and a 100% brand-new unseen validation set of 16 images was created to prevent data leakage. Hit 59.9% mAP50 and 75.6% Precision.* |
+| `i16` (Jul 28)| YOLO11N | 220 / 16 | 1024 / 4 / 295 | 78.0% | 66.0% | 66.3% | 18.4% | *`i16` Model. Bootcamp Augmentations. Cranked `mosaic: 1.0` and `translate: 0.5`. Training was violently hard, so `patience` was bumped to 150. Model broke through at Epoch 145 and scored an incredibly robust 66.3% mAP50 and 78.0% Precision on totally unseen data. Best model to date!* |
+| `i17` (Jul 28)| YOLO11N | 221 / 15 | 1024 / 4 / 256 | 82.4% | 69.0% | 72.1% | 23.6% | *`i17` Model (SGD). Switched optimizer to SGD (`lr0=0.01`). Model oscillated violently but eventually found a massive global minimum at Epoch 106, scoring **72.1% mAP50** and an unprecedented **82.4% Precision**. SGD + Bootcamp Augmentations is the current winning formula!* |
+| `i18` (Jul 28)| YOLO11N | 252 / 16 | 1024 / 4 / 263 | 82.8% | 70.0% | 70.4% | 21.9% | *`i18` Model. Reverted workers to 2 for thermal limits. Continued dataset scaling pushed precision to 82.8% but mAP50 settled at 70.4%.* |
+| `i19` (Jul 29)| YOLO11N | 252 / 16 | 512 / 4 / 74 | 93.5% | 95.6% | 96.3% | 47.6% | *`i19` Model (Patch-Based Training). Sliced the dataset into 6,000+ 512x512 patches. Set `imgsz=512`, `patience=50`, `scale=0.1`. Accuracy exploded to a staggering **96.3% mAP50**, proving that processing large images without downscaling fixes the small-object detection issue perfectly!* |
+| `i20` (Jul 29)| YOLO11S | 260 / 16 | 512 / Auto / 500 | ~94% | ~95% | 97.5% | 48.3% | *Upgraded to YOLO11S (Small) and heavily increased augmentations (`dropout=0.3, scale=0.3, mixup=0.2`). Added capacity allowed mAP50 to hit **97.5%**, but `mAP50-95` hovered around 45% due to architectural limits on tiny objects.* |
+| `i21` (Jul 29)| YOLO11N-P2 | 260 / 16 | 512 / 16 / 198 | 93.8% | 94.5% | 97.9% | 49.0% | *`i21` Model (Nano-P2). Added a P2 stride-4 head and 150 patience. Highest score of all time (97.9% mAP50 / 49.0% mAP50-95). Ultimate microscopic detection architecture!* |
+| `i22` (Jul 30)| YOLO11N-P2 | 260 / 16 | 512 / 16 / 166 | 94.9% | 94.6% | 98.1% | 53.4% | *`i22` Model (AdamW). Switched optimizer to AdamW, pushing mAP50-95 to 53.4% (vastly tighter bounding boxes). However, the default learning rate (`0.01`) was slightly unstable, causing slower convergence.* |
+| `i23` (Jul 30)| YOLO11N-P2 | 260 / 16 | 512 / 16 / 97 | 94.7% | 95.3% | 98.3% | 53.3% | *`i23` Model (AdamW Optimized). Lowered `lr0` to `0.001` to stabilize AdamW, increased `box` loss penalty to `4.0`. Model converged blisteringly fast (peaked at Epoch 45) achieving the highest accuracy and tightest bounding boxes to date!* |
 
 *Remember to update this table every time a new dataset batch is annotated or a major training setting is changed!*
 

@@ -15,7 +15,7 @@ C. R. C. Magdadaro, R. F. D. Diocton, et al., *Precision Quantification of Rice 
 ## Features
 
 - **Automated High-Speed Pollen Counting:** Instantly detect and count thousands of pollen grains across massive image sets, automatically exporting the results to an Excel spreadsheet.
-- **AI-Assisted Smart Annotation:** Rapidly build your dataset using a GUI that features auto-snapping bounding boxes and an *Active Learning* pipeline (where the AI pre-annotates images for you to simply approve or correct).
+- **Model-Assisted Smart Annotation:** Rapidly build your dataset using a GUI that features auto-snapping bounding boxes and an *Active Learning* pipeline (where the model pre-annotates images for you to simply approve or correct).
 - **Microscopy-Optimized Workflow:** Navigate massive, dense slide images easily with Quadrant-View slicing and targeted Regional Recounting for highly clustered areas.
 - **Robust Model Training:** Train custom YOLO models with advanced features like K-Fold cross-validation for small datasets, automatic data augmentation, and easy run-resuming.
 - **SAHI (Slicing Aided Hyper Inference):** Built-in support for Patch-Based Training and Sliced Inference to seamlessly detect microscopic pollen grains on massive, ultra-high-resolution microscopy imagery without downscaling.
@@ -69,9 +69,9 @@ python scripts/train.py --model yolo11n.pt --epochs 150 --batch 20 --imgsz 1024
 - `--kfold`: Set to `5` to enable 5-fold cross-validation for robust accuracy metrics
 - `--resume`: Add this flag to resume an interrupted training run
 
-### 2. Manual & AI-Assisted Annotation (`annotate.py`)
+### 2. Manual & Model-Assisted Annotation (`annotate.py`)
 
-Launch the interactive desktop GUI to manually label data or correct AI predictions.
+Launch the interactive desktop GUI to manually label data or correct model predictions.
 
 ```bash
 python scripts/annotate.py
@@ -80,7 +80,7 @@ python scripts/annotate.py
 **Key Capabilities:**
 
 - **Active Learning:** Use your trained model to auto-annotate or correct existing labels on the fly.
-- **Regional Recounting:** Drag a box over a dense cluster and let the AI recount that specific region dynamically.
+- **Regional Recounting:** Drag a box over a dense cluster and let the model recount that specific region dynamically.
 - **GUI Tuning:** Adjust confidence and IoU (overlap) thresholds directly in the interface to fine-tune detections.
 - **Dataset Management:** Instantly sort images into Training, Validation, or Excluded sets.
 
