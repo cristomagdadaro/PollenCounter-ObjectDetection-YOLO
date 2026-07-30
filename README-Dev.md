@@ -102,7 +102,7 @@ Now that the foundational architecture, robust K-Fold training, and unified UI t
 4. **Merge:** Move those corrected images/labels into your main `datasets/images` and `datasets/labels` folders.
 5. **Retrain:** Run `scripts/train.py` to retrain the model on the newly expanded dataset.
 
-*Once you reach **300-500 high-quality annotated images**, you will be able to upgrade the model to YOLO11 Medium (`yolo11m.pt`) and easily achieve 90%+ accuracy.*
+*Once you reach **300-500 raw, full-resolution annotated microscope images** (which will slice into 10,000+ patches), you will be able to upgrade the model to YOLO11 Medium (`yolo11m.pt`) and push accuracy even higher.*
 
 
 ##  Project Architecture (Config-Driven Modular Pipeline)
