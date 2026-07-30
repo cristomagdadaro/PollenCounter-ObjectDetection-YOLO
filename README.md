@@ -135,6 +135,14 @@ Run your model on thousands of new images.
 - **Count & Analyze:** Detects all pollen grains, draws bounding boxes, and generates a massive `pollen_counts.xlsx` spreadsheet.
 - **Auto-Annotate:** Feeds raw images through the model and generates YOLO `.txt` labels (using OpenCV to snap them perfectly) so you can pull them into `annotate.py` to fix mistakes and expand your training data.
 
+### 4. Real-Time Training Monitor (`scripts/monitor.py`)
+
+Visually track your YOLO model's training progress in real-time.
+
+- **Live Dynamic Graphs:** Automatically reads `results.csv` every 5 seconds and renders interactive Matplotlib graphs for `mAP50`, `mAP50-95`, and `box_loss`.
+- **Status Dashboard:** Instantly see your Max Accuracy and Current Epoch without needing to parse the scrolling terminal output.
+- **Process Management:** Includes a dedicated "Stop Training" button that gracefully hooks into the Windows process tree to safely terminate training if things go wrong.
+
 ## Project Structure
 
 ```text

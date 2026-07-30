@@ -6,7 +6,7 @@
 
 # ── Optimization ─────────────────────────────────────────────────────
 optimizer: AdamW    # AdamW handles small datasets better than SGD
-lr0: 0.01              # Initial learning rate (lower than default to prevent NaN with AdamW)
+lr0: 0.001              # Initial learning rate (lower than default to prevent NaN with AdamW)
 amp: false              # Disable mixed precision to prevent NaN on certain GPUs
 batch: 32                # MUST stay at 20 to prevent P2 layer from crashing 24GB VRAM!
 patience: 50            # Early stopping after N epochs without improvement

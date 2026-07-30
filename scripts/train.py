@@ -49,7 +49,7 @@ def parse_args() -> argparse.Namespace:
                         help="Path to the dataset YAML config.")
     parser.add_argument("--epochs", type=int, default=100,
                         help="Total training epochs.")
-    parser.add_argument("--imgsz", type=int, default=1024,
+    parser.add_argument("--imgsz", type=int, default=512,
                         help="Input image size (pixels).")
     parser.add_argument("--batch", type=int, default=4,
                         help="Batch size (reduce for lower VRAM).")
@@ -123,6 +123,13 @@ def main() -> None:
 
 
 def _run_standard_training(args, data_path):
+    try:
+        import subprocess
+        subprocess.Popen([sys.executable, "scripts/monitor.py"])
+        print("[INFO] Auto-launched Training Monitor (scripts/monitor.py).")
+    except Exception as e:
+        print(f"[WARNING] Could not auto-launch monitor: {e}")
+
     if args.resume:
         last_ckpt = Path(args.project) / args.name / "weights" / "last.pt"
         if not last_ckpt.exists():
@@ -202,8 +209,9 @@ def _run_standard_training(args, data_path):
             p = int(metrics.box.mp * 100)
             r = int(metrics.box.mr * 100)
             map50 = int(metrics.box.map50 * 100)
+            map50_95 = int(metrics.box.map * 100)
         else:
-            p, r, map50 = 0, 0, 0
+            p, r, map50, map50_95 = 0, 0, 0, 0
             
         # Release Windows file locks held by Ultralytics
         import time, gc
@@ -232,8 +240,7 @@ def _run_standard_training(args, data_path):
 
         detect_dir = Path(args.project)
         iteration = len([d for d in detect_dir.iterdir() if d.is_dir() and d.name.startswith("i")]) + 1
-
-        new_name = f"i{iteration}_{train_count}T_{val_count}V_{model_name}_{p}P_{r}R_{map50}A"
+        new_name = f"i{iteration}_{train_count}T_{val_count}V_{model_name}_{p}P_{map50_95}B_{r}R_{map50}A"
         old_dir = detect_dir / args.name
         new_dir = detect_dir / new_name
 
