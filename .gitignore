@@ -4,3 +4,7 @@ config/inference_settings.json
 **/__pycache__/
 **/review/*
 runs/detect/frcnn/*
+
+# YOLO Cache files
+*.cache
+*.npy

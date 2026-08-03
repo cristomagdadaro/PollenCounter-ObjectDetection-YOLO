@@ -18,18 +18,18 @@ box: 4.0               # Lower box loss weight — prioritize detection over tig
 degrees: 180.0          # Random rotation up to 180 degrees (pollen has no fixed orientation)
 fliplr: 0.5             # 50% horizontal flip
 flipud: 0.5             # 50% vertical flip
-scale: 0.3             # Random scale +/- 30%
-translate: 0.3          # Random shift up to 30%
-hsv_h: 0.1             # Hue shift
-hsv_s: 0.8              # Saturation shift
-hsv_v: 0.8              # Brightness shift
-mosaic: 1.0             # Stitch 4 images together (100% chance)
-mixup: 0.2              # Blend 2 images (20% chance)
+scale: 0.1              # LITE: Reduced from 0.3 to 0.1 (mild scale variation)
+translate: 0.1          # LITE: Reduced from 0.3 to 0.1 (mild shift)
+hsv_h: 0.015            # LITE: Drastically reduced hue shift (pollen color matters)
+hsv_s: 0.3              # LITE: Reduced from 0.8 (preserves natural saturation)
+hsv_v: 0.3              # LITE: Reduced from 0.8 (preserves natural brightness)
+mosaic: 0.5             # LITE: Reduced from 1.0 (Stitch 4 images together 50% of the time)
+mixup: 0.0              # LITE: Disabled (too distorting for pollen)
 copy_paste: 0.0         # Disabled
-close_mosaic: 10         # Keep mosaic active until the end of training
+close_mosaic: 10        # Keep mosaic active until the end of training
 
 # ── System ───────────────────────────────────────────────────────────
-cache: ram              # Load entire dataset into 64GB System RAM to eliminate disk bottlenecks
+cache: disk              # Load entire dataset into 64GB System RAM to eliminate disk bottlenecks
 workers: 8              # Dataloader threads (increased to feed GPU faster from RAM)
 max_det: 1500           # Max detections per image (default 300 is too low for dense pollen)
 multi_scale: false      # Disable random resolution changes during training
