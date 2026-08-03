@@ -9,6 +9,8 @@ from src.theme import *
 from typing import *
 from pathlib import Path
 import tkinter as tk
+import cv2
+import numpy as np
 from tkinter import ttk, messagebox, filedialog
 from PIL import Image, ImageTk, ImageDraw
 

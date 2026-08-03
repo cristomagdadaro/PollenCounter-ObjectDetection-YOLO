@@ -9,6 +9,8 @@ from src.theme import *
 from typing import *
 from pathlib import Path
 import tkinter as tk
+import cv2
+import numpy as np
 from tkinter import ttk, messagebox, filedialog
 from PIL import Image, ImageTk, ImageDraw
 
@@ -496,6 +498,10 @@ class UIBuilderMixin:
         self.root.bind("d", lambda e: self._next_image())
         self.root.bind("<Control-z>", lambda e: self._undo())
         self.root.bind("<Control-s>", lambda e: self._save_labels())
+        self.root.bind("s", lambda e: self.auto_snap.set(not self.auto_snap.get()))
+        self.root.bind("S", lambda e: self.auto_snap.set(not self.auto_snap.get()))
+        self.root.bind("<Shift-Up>", lambda e: self._adjust_scale(0.1))
+        self.root.bind("<Shift-Down>", lambda e: self._adjust_scale(-0.1))
         self.root.bind("<MouseWheel>", self._on_mousewheel)
         self.root.bind("<plus>", lambda e: self._zoom_in())
         self.root.bind("<equal>", lambda e: self._zoom_in())

@@ -443,7 +443,8 @@ class AnnotationApp(UIBuilderMixin, CanvasEventsMixin, RenderingMixin, ActiveLea
                 self.auto_snap.set(config["auto_snap"])
             if "snap_method" in config and hasattr(self, 'snap_method'):
                 self.snap_method.set(config["snap_method"])
-            # fit_mode intentionally not loaded to force 'Fit H' on startup
+            if "fit_mode" in config and hasattr(self, 'fit_mode'):
+                self.fit_mode.set(config["fit_mode"])
             if "show_violet" in config and hasattr(self, 'show_violet'):
                 self.show_violet.set(config["show_violet"])
                 

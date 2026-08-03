@@ -9,11 +9,25 @@ from src.theme import *
 from typing import *
 from pathlib import Path
 import tkinter as tk
+import cv2
+import numpy as np
 from tkinter import ttk, messagebox, filedialog
 from PIL import Image, ImageTk, ImageDraw
 
 
 class CanvasEventsMixin:
+    def _adjust_scale(self, delta):
+        scale_factor = 1.0 + delta
+        if not self.boxes: return
+        for box in self.boxes:
+            box.w *= scale_factor
+            box.h *= scale_factor
+        self._redraw_boxes()
+        self._save_labels()
+        
+        orig_bg = self.scale_entry.cget("bg")
+        self.scale_entry.config(bg="#4ADE80" if delta > 0 else "#F87171")
+        self.root.after(200, lambda: self.scale_entry.config(bg=orig_bg))
     def _on_canvas_resize(self, event):
         """Re-render when canvas is resized."""
         if self.image_paths and self.pil_img:
