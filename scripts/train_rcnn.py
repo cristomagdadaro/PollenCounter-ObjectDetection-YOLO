@@ -1,5 +1,6 @@
 import sys
 import os
+import time
 from pathlib import Path
 
 # Add project root to path
@@ -31,9 +32,10 @@ def main():
     train_dataset = YOLODatasetRCNN(str(train_txt))
     val_dataset = YOLODatasetRCNN(str(val_txt))
     
-    # We use a small batch size of 4 to prevent OOM on the RTX 3090 with Faster R-CNN
-    train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True, num_workers=2, collate_fn=collate_fn)
-    val_loader = DataLoader(val_dataset, batch_size=4, shuffle=False, num_workers=2, collate_fn=collate_fn)
+    # Maximize the RTX 3090 (24GB VRAM)
+    # Use persistent_workers=True to prevent Windows shm.dll crash while keeping background loading fast
+    train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True, num_workers=4, persistent_workers=True, collate_fn=collate_fn)
+    val_loader = DataLoader(val_dataset, batch_size=16, shuffle=False, num_workers=4, persistent_workers=True, collate_fn=collate_fn)
     
     print("Initializing Faster R-CNN ResNet50-FPN V2...")
     model = torchvision.models.detection.fasterrcnn_resnet50_fpn_v2(weights="DEFAULT")
@@ -47,10 +49,13 @@ def main():
     
     # Optimizer (SGD is the academic gold standard for Faster R-CNN)
     params = [p for p in model.parameters() if p.requires_grad]
-    optimizer = torch.optim.SGD(params, lr=0.005, momentum=0.9, weight_decay=0.0005)
+    optimizer = torch.optim.SGD(params, lr=0.01, momentum=0.9, weight_decay=0.0005)
     
-    num_epochs = 5
+    num_epochs = 65
     print(f"Starting training for {num_epochs} epochs...")
+    
+    total_steps = num_epochs * len(train_loader)
+    start_time = time.time()
     
     for epoch in range(num_epochs):
         model.train()
@@ -68,8 +73,17 @@ def main():
             
             epoch_loss += losses.item()
             
+            current_step = epoch * len(train_loader) + i + 1
             if i % 10 == 0:
-                print(f"Epoch {epoch} | Step {i}/{len(train_loader)} | Loss: {losses.item():.4f}")
+                elapsed = time.time() - start_time
+                avg_time_per_step = elapsed / current_step
+                steps_left = total_steps - current_step
+                eta_secs = steps_left * avg_time_per_step
+                
+                m, s = divmod(int(eta_secs), 60)
+                h, m = divmod(m, 60)
+                
+                print(f"Epoch {epoch} | Step {i}/{len(train_loader)} | Loss: {losses.item():.4f} | ETA: {h}h {m}m {s}s")
                 
         print(f"--- Epoch {epoch} finished. Average Loss: {epoch_loss / len(train_loader):.4f} ---")
         
