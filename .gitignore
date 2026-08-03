@@ -1,5 +1,6 @@
 .venv/Lib/*
 .venv/Scripts/*
 config/inference_settings.json
-__pycache__/
+**/__pycache__/
 **/review/*
+runs/detect/frcnn/*

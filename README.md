@@ -17,9 +17,9 @@ C. R. C. Magdadaro, R. F. D. Diocton, et al., *Precision Quantification of Rice 
 - **Automated High-Speed Pollen Counting:** Instantly detect and count thousands of pollen grains across massive image sets, automatically exporting the results to an Excel spreadsheet.
 - **Model-Assisted Smart Annotation:** Rapidly build your dataset using a GUI that features auto-snapping bounding boxes and an *Active Learning* pipeline (where the model pre-annotates images for you to simply approve or correct).
 - **Microscopy-Optimized Workflow:** Navigate massive, dense slide images easily with Quadrant-View slicing and targeted Regional Recounting for highly clustered areas.
-- **Robust Model Training:** Train custom YOLO models with advanced features like K-Fold cross-validation for small datasets, automatic data augmentation, and easy run-resuming.
+- **Dual Architecture Training:** Train custom YOLO11 models with K-Fold cross-validation, or experiment with Faster R-CNN (ResNet50-FPN V2) for academic comparison — all from a single codebase.
 - **SAHI (Slicing Aided Hyper Inference):** Built-in support for Patch-Based Training and Sliced Inference to seamlessly detect microscopic pollen grains on massive, ultra-high-resolution microscopy imagery without downscaling.
-- **Batch Processing Utilities:** Apply powerful operations—like automatic overlapping box cleanup (NMS), edge-snapping, dataset slicing, and scaling—across your entire dataset with a single click.
+- **Batch Processing Utilities:** Apply powerful operations — like automatic overlapping box cleanup (NMS), CLAHE contrast enhancement, and dataset slicing — across your entire dataset with a single command.
 
 ## Environment Setup
 
@@ -51,7 +51,7 @@ pip install -r requirements.txt
 
 ## How to Use
 
-The pipeline is split into three core scripts. Run them from the project root:
+The pipeline is organized into clean scripts (entry-point tools) and shared library modules.
 
 ### 1. Training the Model (`train.py`)
 
@@ -69,75 +69,67 @@ python scripts/train.py --model yolo11n.pt --epochs 150 --batch 20 --imgsz 1024
 - `--kfold`: Set to `5` to enable 5-fold cross-validation for robust accuracy metrics
 - `--resume`: Add this flag to resume an interrupted training run
 
-### 2. Manual & Model-Assisted Annotation (`annotate.py`)
+### 2. Training Faster R-CNN (`train_rcnn.py`)
 
-Launch the interactive desktop GUI to manually label data or correct model predictions.
+Train or evaluate a Faster R-CNN ResNet50-FPN V2 model for academic comparison.
+
+```bash
+python scripts/train_rcnn.py                   # Train for 65 epochs
+python scripts/train_rcnn.py --epochs 100      # Override epoch count
+python scripts/train_rcnn.py --val-only        # Evaluate saved weights (mAP50 / mAP50-95)
+```
+
+### 3. Annotation, Inference & Comparison (`annotate.py`)
+
+Launch the unified desktop GUI to annotate data, run inference, or compare model predictions.
 
 ```bash
 python scripts/annotate.py
 ```
 
-**Key Capabilities:**
+The GUI provides three integrated tabs:
 
-- **Active Learning:** Use your trained model to auto-annotate or correct existing labels on the fly.
-- **Regional Recounting:** Drag a box over a dense cluster and let the model recount that specific region dynamically.
-- **GUI Tuning:** Adjust confidence and IoU (overlap) thresholds directly in the interface to fine-tune detections.
-- **Dataset Management:** Instantly sort images into Training, Validation, or Excluded sets.
+- **🏷️ Annotate** — Draw and correct bounding boxes with auto-snapping, Regional Recounting, and dataset management (Train/Val/Excluded).
+- **🔍 Inference** — Run your trained model on new images (Count & Analyze or Auto-Annotate mode), with optional SAHI for high-res sliced inference.
+- **📊 Compare** — Side-by-side view of human labels vs model predictions with an automatic TP/FP/FN/Precision/Recall/F1 Excel report generator.
 
-### 3. Inference & Counting (`inference.py`)
+### 4. Dataset Preprocessing (`src/preprocessing` & `src/slicer`)
 
-Run your trained model on new, unseen images to generate counts.
-
-```bash
-python scripts/inference.py
-```
-
-**Operation Modes:**
-
-- **Count & Analyze:** Automatically counts all pollen grains, draws bounding boxes on the output images, and exports a final `.xlsx` spreadsheet report.
-- **Auto-Annotate:** Pre-annotates raw images and exports YOLO `.txt` labels to be later imported into `annotate.py` for Active Learning.
-- **Sliced Inference (SAHI):** Enable SAHI inside the GUI to physically slice massive images into `512x512` patches during inference, completely eliminating accuracy loss from YOLO image downscaling.
-
-### 4. Patch-Based Training Preparation (`slice_dataset.py`)
-
-To train your model to identify microscopic details perfectly, use this utility to generate a high-resolution, patch-based dataset.
+Prepare and clean your dataset using importable library modules:
 
 ```bash
-python scripts/slice_dataset.py
+# Apply CLAHE contrast enhancement to all images
+python -m src.preprocessing --clahe
+
+# Remove duplicate bounding boxes (IoU-based)
+python -m src.preprocessing --dedup
+
+# Remove overlapping boxes (NMS-based)
+python -m src.preprocessing --nms
+
+# Run all preprocessing steps
+python -m src.preprocessing --all
+
+# Slice full-resolution images into 512x512 overlapping patches
+python -m src.slicer
+python -m src.slicer --slice-size 512 --overlap 0.2
 ```
 
-This physically crops your raw high-res images and their bounding box `.txt` labels into overlapping `512x512` patches, saving them into a `datasets_sliced` directory. You can then train a wildly accurate model by pointing the trainer to `config/pollen_dataset_sliced.yaml`.
+### 5. Live Video Feed (`live_video.py`)
 
-## Interactive GUI Tools
+Run real-time YOLO inference on a webcam or microscope USB camera:
 
-This project features three custom-built Tkinter desktop applications to make managing, evaluating, and utilizing your dataset incredibly fast.
+```bash
+python scripts/live_video.py --model "runs/detect/i24_.../weights/best.pt" --source 0
+```
 
-### 1. Dataset Annotator (`scripts/annotate.py`)
+### 6. Real-Time Training Monitor (`monitor.py`)
 
-Rapidly build your dataset manually or fix auto-annotated active-learning images.
+Visually track YOLO training progress in real-time (auto-launched by `train.py`).
 
-- **OpenCV Auto-Snapping:** Perfectly "shrink-wraps" your drawn bounding boxes around the dark pollen grain automatically (with an 8% padding to preserve blurry edges). Restored the original, simpler, and highly accurate edge-snapping algorithm.
-- **Visual Error Warnings:** Boxes are color-coded in real-time. **Green** (Normal), **Orange** (Overlapping), **Red** (Oversized).
-- **Move/Exclude:** Instantly move images between Train, Validation, or Excluded folders. Automatically unloads images to bypass Windows file locks and syncs CLAHE equivalents dynamically.
-
-### 2. Validation Comparator (`scripts/compare_val.py`)
-
-Visually analyze exactly where your model is making mistakes.
-
-- **Side-by-Side Canvas:** Displays your human Ground Truth annotations (Green) directly next to the YOLO Model predictions (Red).
-- **Real-Time Inference:** Instantly runs your `best.pt` model dynamically when you switch images.
-- **Metrics Engine:** Click "Generate Excel Report" to automatically calculate True Positives (TP), False Positives (FP), False Negatives (FN), Precision, Recall, and F1-Score for every single image using IoU matching!
-
-### 3. Unified Inference Tool (`scripts/inference.py`)
-
-Run your model on thousands of new images.
-
-- **Count & Analyze:** Detects all pollen grains, draws bounding boxes, and generates a massive `pollen_counts.xlsx` spreadsheet.
-- **Auto-Annotate:** Feeds raw images through the model and generates YOLO `.txt` labels (using OpenCV to snap them perfectly) so you can pull them into `annotate.py` to fix mistakes and expand your training data.
-
-### 4. Real-Time Training Monitor (`scripts/monitor.py`)
-
-Visually track your YOLO model's training progress in real-time.
+```bash
+python scripts/monitor.py
+```
 
 - **Live Dynamic Graphs:** Automatically reads `results.csv` every 5 seconds and renders interactive Matplotlib graphs for `mAP50`, `mAP50-95`, and `box_loss`.
 - **Status Dashboard:** Instantly see your Max Accuracy and Current Epoch without needing to parse the scrolling terminal output.
@@ -161,16 +153,20 @@ PollenCounter-ObjectDetection-YOLO/
 │       ├── val/                  
 │       └── excluded/             
 ├── src/                          # Shared Library (Core Logic)
-│   ├── bounding_box.py           
-│   ├── model_utils.py            
-│   ├── paths.py                  
-│   ├── settings.py               
-│   └── theme.py                  
+│   ├── bounding_box.py           # BoundingBox class & IoU utilities
+│   ├── model_utils.py            # Auto-discover latest weights
+│   ├── paths.py                  # Centralized path constants
+│   ├── preprocessing.py          # CLAHE, duplicate cleaning, NMS
+│   ├── rcnn_dataset.py           # YOLO→R-CNN dataset adapter
+│   ├── settings.py               # JSON settings reader/writer
+│   ├── slicer.py                 # Dataset slicing into patches
+│   └── theme.py                  # Centralized colors & fonts
 ├── scripts/                      # Entry-Point Tools
-│   ├── train.py                  # CLI Training launcher (K-Fold supported)
-│   ├── inference.py              # Unified Batch inference & Auto-Annotation
-│   ├── annotate.py               # GUI Annotation Tool
-│   ├── compare_val.py            # GUI Validation visualizer & reporting
-│   └── clean_duplicate_points.py # Utility to purge overlapping bounding boxes
+│   ├── annotate.py               # Unified GUI (Annotate + Inference + Compare tabs)
+│   ├── train.py                  # YOLO training (K-Fold supported)
+│   ├── train_rcnn.py             # Faster R-CNN training + validation
+│   ├── monitor.py                # Real-time training monitor GUI
+│   ├── live_video.py             # Live webcam/microscope inference
+│   └── epyc_inference.py         # Headless CPU server auto-annotator
 └── README.md
 ```

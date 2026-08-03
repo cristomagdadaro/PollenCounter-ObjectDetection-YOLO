@@ -223,14 +223,17 @@ def _run_standard_training(args, data_path):
 
         train_count, val_count = 0, 0
         try:
-            with open(data_path, "r") as f:
-                data_cfg = yaml.safe_load(f)
-            train_txt = Path(data_cfg.get("train", ""))
-            val_txt = Path(data_cfg.get("val", ""))
+            train_txt = DATASET_ROOT / "train.txt"
+            val_txt = DATASET_ROOT / "val.txt"
             if train_txt.exists():
                 train_count = sum(1 for _ in open(train_txt))
+            elif (DATASET_ROOT / "labels" / "train").exists():
+                train_count = len(list((DATASET_ROOT / "labels" / "train").glob("*.txt")))
+
             if val_txt.exists():
                 val_count = sum(1 for _ in open(val_txt))
+            elif (DATASET_ROOT / "labels" / "val").exists():
+                val_count = len(list((DATASET_ROOT / "labels" / "val").glob("*.txt")))
         except Exception:
             pass
 
