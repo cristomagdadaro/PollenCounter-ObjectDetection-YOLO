@@ -21,7 +21,17 @@ C. R. C. Magdadaro, R. F. D. Diocton, et al., *Precision Quantification of Rice 
 - **SAHI (Slicing Aided Hyper Inference):** Built-in support for Patch-Based Training and Sliced Inference to seamlessly detect microscopic pollen grains on massive, ultra-high-resolution microscopy imagery without downscaling.
 - **Batch Processing Utilities:** Apply powerful operations — like automatic overlapping box cleanup (NMS), CLAHE contrast enhancement, and dataset slicing — across your entire dataset with a single command.
 
-## Environment Setup
+## Quick Start (Pre-compiled Release)
+
+If you are an end-user (e.g., a scientist or researcher) who simply wants to count pollen without touching any code, you can use the pre-compiled Windows executable:
+
+1. Go to the **[Releases](https://github.com/cristomagdadaro/PollenCounter-ObjectDetection-YOLO/releases)** page on the right side of this repository.
+2. Download the latest `PollenCounterStudio.zip` file.
+3. Extract the ZIP file to a folder on your computer.
+4. Double-click **`PollenCounterStudio.exe`** to launch the unified dashboard.
+5. From the dashboard, launch **Batch Inference** to automatically count pollen across an entire folder of images, or launch the **Smart Annotator** to visually inspect and manage your dataset.
+
+## Developer Environment Setup
 
 To run training, inference, and the GUI annotation tools, you must set up your Python environment with the required dependencies (such as OpenCV, Ultralytics YOLO, and Pandas).
 
