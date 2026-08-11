@@ -25,12 +25,25 @@ class UIBuilderMixin:
         menubar = tk.Menu(self.root)
         self.root.config(menu=menubar)
 
+        # ── Navigation Menu (Mirrors Launcher) ────────────────────────────────
         tools_menu = tk.Menu(menubar, tearoff=0)
         menubar.add_cascade(label="Tools", menu=tools_menu)
-        tools_menu.add_command(label="🔍 Inference (Count & Auto-Annotate)", command=self._open_inference)
-        tools_menu.add_command(label="📊 Compare (Human vs Model)", command=self._open_compare)
+        
+        # We spawn other tools using the same runpy logic as the launcher
+        def spawn_tool(script_name):
+            import subprocess
+            import sys
+            # Pass the tool name to launcher.py or run it directly
+            cmd = [sys.executable, str(PROJECT_ROOT / "launcher.py"), script_name]
+            subprocess.Popen(cmd, cwd=str(PROJECT_ROOT))
+            
+        tools_menu.add_command(label="Smart Annotator", command=lambda: spawn_tool("annotate"))
+        tools_menu.add_command(label="Batch Inference", command=lambda: spawn_tool("inference"))
         tools_menu.add_separator()
-        tools_menu.add_command(label="📹 Live Video Feed", command=self._open_live_video)
+        tools_menu.add_command(label="Training Dashboard", command=lambda: spawn_tool("monitor"))
+        tools_menu.add_command(label="Dataset Analytics", command=lambda: spawn_tool("dataset_analytics"))
+        tools_menu.add_command(label="Augmentation Preview", command=lambda: spawn_tool("augment_preview"))
+        tools_menu.add_command(label="Export Model", command=lambda: spawn_tool("export"))
 
         # ── Top bar ─────────────────────────────────────────────────
         top = tk.Frame(self.root, bg=ACCENT, height=60)

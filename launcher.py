@@ -13,10 +13,31 @@ from tkinter import ttk
 from pathlib import Path
 
 import os
+import traceback
 from tkinter import filedialog, messagebox
+from datetime import datetime
 
 # Fix for PyInstaller multiprocessing
 multiprocessing.freeze_support()
+
+# Global Error Logger
+def global_exception_handler(exc_type, exc_value, exc_traceback):
+    workspace = os.environ.get("POLLEN_WORKSPACE", str(Path(__file__).resolve().parent))
+    log_file = Path(workspace) / "error_log.txt"
+    try:
+        with open(log_file, "a") as f:
+            f.write(f"\n--- Crash Report: {datetime.now().isoformat()} ---\n")
+            traceback.print_exception(exc_type, exc_value, exc_traceback, file=f)
+        
+        # Try to show a popup if tkinter can still run
+        temp_root = tk.Tk()
+        temp_root.withdraw()
+        messagebox.showerror("Fatal Error", f"The application crashed!\n\nError: {exc_value}\n\nA detailed crash report was saved to:\n{log_file}")
+        temp_root.destroy()
+    except:
+        pass
+        
+sys.excepthook = global_exception_handler
 
 # Add parent directory to path so imports work identically in source and compiled mode
 if getattr(sys, 'frozen', False):
@@ -112,12 +133,12 @@ class MainLauncher:
         content.pack(fill=tk.BOTH, expand=True, padx=40)
         
         tools = [
-            ("🏷️ Smart Annotator", "Draw bounding boxes and manage dataset", "annotate"),
-            ("🚀 Batch Inference", "Run models on large folders of images", "inference"),
-            ("⚙️ Export Model", "Convert models to ONNX or TensorRT for massive speedups", "export"),
-            ("🎨 Augment Previewer", "Visually tune training.yaml augmentations", "augment"),
-            ("🧠 Neural Net Visualizer", "Step-by-step visualizer of YOLO layer activations", "visualize"),
-            ("📈 Training Monitor", "Live real-time Matplotlib graphs of YOLO training", "monitor"),
+            ("Smart Annotator", "Draw bounding boxes and manage dataset", "annotate"),
+            ("Batch Inference", "Run models on large folders of images", "inference"),
+            ("Export Model", "Convert models to ONNX or TensorRT for massive speedups", "export"),
+            ("Augment Previewer", "Visually tune training.yaml augmentations", "augment"),
+            ("Neural Net Visualizer", "Step-by-step visualizer of YOLO layer activations", "visualize"),
+            ("Training Monitor", "Live real-time Matplotlib graphs of YOLO training", "monitor"),
         ]
         
         for name, desc, cmd in tools:

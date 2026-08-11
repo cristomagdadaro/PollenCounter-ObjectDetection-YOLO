@@ -300,16 +300,21 @@ class ActiveLearningMixin:
             self.root.update()
             self.sahi_model.confidence_threshold = conf_val
             
-            from sahi.predict import get_sliced_prediction
-            results = get_sliced_prediction(
-                img_path,
-                self.sahi_model,
-                slice_height=512,
-                slice_width=512,
-                overlap_height_ratio=0.2,
-                overlap_width_ratio=0.2,
-                verbose=0
-            )
+            try:
+                from sahi.predict import get_sliced_prediction
+                results = get_sliced_prediction(
+                    img_path,
+                    self.sahi_model,
+                    slice_height=512,
+                    slice_width=512,
+                    overlap_height_ratio=0.2,
+                    overlap_width_ratio=0.2,
+                    verbose=0
+                )
+            except Exception as e:
+                messagebox.showerror("SAHI Error", f"Failed to run SAHI inference:\n\n{e}")
+                self.status.config(text=" SAHI inference failed")
+                return
             
             if results.object_prediction_list:
                 img_w, img_h = self.orig_pil_img.size

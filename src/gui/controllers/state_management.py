@@ -206,12 +206,24 @@ class StateManagementMixin:
             # Move image
             dest_img = target_img_dir / img_path.name
             
-            # Windows file lock prevention: clear PIL image reference before moving
+            # Windows file lock prevention: clear all image references before moving
             self.orig_pil_img = None
             self.pil_img = None
+            if hasattr(self, 'tk_image'):
+                self.tk_image = None
+            if hasattr(self, 'overlay_tk'):
+                self.overlay_tk = None
             self.canvas.delete("all")
             
-            shutil.move(str(img_path), str(dest_img))
+            # Force garbage collection to release any dangling Windows file handles
+            import gc
+            gc.collect()
+            
+            try:
+                shutil.move(str(img_path), str(dest_img))
+            except Exception as e:
+                messagebox.showerror("File Error", f"Could not move image. It might be locked by another process.\n\nError: {e}")
+                return
 
             # Move label if exists
             if label_path.exists():

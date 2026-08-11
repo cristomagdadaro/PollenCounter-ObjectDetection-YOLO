@@ -16,6 +16,8 @@ Write-Host "`n[2/3] Compiling Launcher... (This may take 5-10 minutes)"
     --hidden-import "scripts.augment_preview" `
     --hidden-import "scripts.dataset_analytics" `
     --hidden-import "scripts.export" `
+    --hidden-import "sahi" `
+    --hidden-import "sahi.predict" `
     --collect-data "ultralytics" `
     --copy-metadata "torch" `
     --copy-metadata "tqdm" `
@@ -32,14 +34,36 @@ Write-Host "`n[3/3] Copying project structure and configs to dist..."
 New-Item -Path "dist\PollenCounterStudio\pretrained_models" -ItemType Directory -Force | Out-Null
 New-Item -Path "dist\PollenCounterStudio\runs\detect" -ItemType Directory -Force | Out-Null
 
-# Copy config and models if they exist
+# Copy README
+if (Test-Path "README.md") {
+    Copy-Item "README.md" "dist\PollenCounterStudio\" -Force
+}
+
+# Copy config and pretrained models
 Copy-Item -Path "config" -Destination "dist\PollenCounterStudio\" -Recurse -Force
 if (Test-Path "pretrained_models\*") {
-    Copy-Item -Path "pretrained_models\*" -Destination "dist\PollenCounterStudio\pretrained_models\" -Force
+    Copy-Item -Path "pretrained_models\*" -Destination "dist\PollenCounterStudio\pretrained_models\" -Recurse -Force
 }
-if (Test-Path "runs\detect\*") {
-    Write-Host "Copying trained models..."
-    Copy-Item -Path "runs\detect\*" -Destination "dist\PollenCounterStudio\runs\detect\" -Recurse -Force
+
+# Parse inference_settings.json to find the active model
+$settings_path = "config\inference_settings.json"
+if (Test-Path $settings_path) {
+    Write-Host "Parsing active model from settings..."
+    $settings = Get-Content -Raw $settings_path | ConvertFrom-Json
+    $active_model = $settings.weights
+    
+    if ($active_model) {
+        $model_path = "runs\detect\$active_model"
+        if (Test-Path $model_path) {
+            Write-Host "Copying active model: $active_model"
+            # Copy just this model's folder recursively to get all exports (pt, onnx, engine, etc.)
+            Copy-Item -Path $model_path -Destination "dist\PollenCounterStudio\runs\detect\$active_model" -Recurse -Force
+        } else {
+            Write-Host "Warning: Active model '$active_model' not found in runs/detect/" -ForegroundColor Yellow
+        }
+    }
+} else {
+    Write-Host "Warning: config/inference_settings.json not found." -ForegroundColor Yellow
 }
 
 Write-Host "`n========================================="
