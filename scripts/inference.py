@@ -1,10 +1,6 @@
 #!/usr/bin/env python3
 """Unified YOLO Inference (GUI).
 
-Two modes:
-  1. Count & Analyze — counts objects, exports .xlsx, saves annotated images.
-  2. Auto-Annotate — saves raw YOLO .txt labels for active learning.
-
 Usage:
     python scripts/inference.py
 """
@@ -36,7 +32,6 @@ DEFAULT_WEIGHTS = get_latest_weights()
 
 
 def run_inference(
-    mode: str,
     model: YOLO,
     image_paths: list[Path],
     out_dir: Path,
@@ -53,21 +48,12 @@ def run_inference(
     sahi_slice_size: int = 512,
 ):
     """Run YOLO inference in either 'Count & Analyze' or 'Auto-Annotate' mode."""
-    summary_rows: list[dict] = []
-    detail_rows: list[dict] = []
-
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    # Setup subfolders
-    if mode == "Count & Analyze":
-        annotated_dir = out_dir / "annotated"
-        if save_annotated_imgs:
-            annotated_dir.mkdir(parents=True, exist_ok=True)
-    else:
-        aa_img_dir = out_dir / "images" / "review"
-        aa_lbl_dir = out_dir / "labels" / "review"
-        aa_img_dir.mkdir(parents=True, exist_ok=True)
-        aa_lbl_dir.mkdir(parents=True, exist_ok=True)
+    aa_img_dir = out_dir / "images" / "review"
+    aa_lbl_dir = out_dir / "labels" / "review"
+    aa_img_dir.mkdir(parents=True, exist_ok=True)
+    aa_lbl_dir.mkdir(parents=True, exist_ok=True)
 
     total = len(image_paths)
     for idx, img_path in enumerate(image_paths, start=1):
@@ -108,274 +94,21 @@ def run_inference(
             xyxy_list = boxes.xyxy.cpu().tolist() if n_detections > 0 else []
             cls_ids = boxes.cls.cpu().tolist() if n_detections > 0 else []
 
-        if mode == "Count & Analyze":
-            # ── Count mode ───────────────────────────────────────────
-            summary_rows.append({
-                "filename": img_path.name,
-                "pollen_count": n_detections,
-                "avg_confidence": round(sum(confidences) / len(confidences), 4) if confidences else 0.0,
-                "min_confidence": round(min(confidences), 4) if confidences else 0.0,
-                "max_confidence": round(max(confidences), 4) if confidences else 0.0,
-                "image_width": img_w,
-                "image_height": img_h,
-                "timestamp": datetime.now().isoformat(timespec="seconds"),
-            })
-
+        # ── Auto-annotate mode ───────────────────────────────────
+        shutil.copy2(img_path, aa_img_dir / img_path.name)
+        label_path = aa_lbl_dir / f"{img_path.stem}.txt"
+        with open(label_path, "w") as f:
             if n_detections > 0:
-                for det_idx, (box, conf_val) in enumerate(zip(xyxy_list, confidences)):
+                for cls_id, box, conf_val in zip(cls_ids, xyxy_list, confidences):
                     x1, y1, x2, y2 = box
-                    detail_rows.append({
-                        "filename": img_path.name,
-                        "detection_id": det_idx + 1,
-                        "x_center": round((x1 + x2) / 2, 2),
-                        "y_center": round((y1 + y2) / 2, 2),
-                        "width": round(x2 - x1, 2),
-                        "height": round(y2 - y1, 2),
-                        "confidence": round(conf_val, 4),
-                    })
-
-            if save_annotated_imgs:
-                annotated_img = img.copy()
-                if n_detections > 0:
-                    box_overlay = img.copy()
-                    for box in xyxy_list:
-                        x1, y1, x2, y2 = box
-                        color = (random.randint(50, 255), random.randint(100, 255), random.randint(50, 255))
-                        cv2.rectangle(box_overlay, (int(x1), int(y1)), (int(x2), int(y2)), color=color, thickness=3)
-                    cv2.addWeighted(box_overlay, box_opacity, annotated_img, 1.0 - box_opacity, 0, annotated_img)
-
-                overlay = annotated_img.copy()
-                text = str(n_detections)
-                font = cv2.FONT_HERSHEY_SIMPLEX
-                (text_w, text_h), _ = cv2.getTextSize(text, font, 1.36, 3)
-                text_x, text_y = (img_w - text_w) // 2, (img_h + text_h) // 2
-                cv2.putText(overlay, text, (text_x, text_y), font, 1.36, (0, 0, 0), 5, cv2.LINE_AA)
-                cv2.putText(overlay, text, (text_x, text_y), font, 1.36, (255, 255, 255), 3, cv2.LINE_AA)
-                cv2.addWeighted(overlay, 0.5, annotated_img, 0.5, 0, annotated_img)
-                cv2.imwrite(str(annotated_dir / img_path.name), annotated_img)
-
-        else:
-            # ── Auto-annotate mode ───────────────────────────────────
-            shutil.copy2(img_path, aa_img_dir / img_path.name)
-            label_path = aa_lbl_dir / f"{img_path.stem}.txt"
-            with open(label_path, "w") as f:
-                if n_detections > 0:
-                    for cls_id, box in zip(cls_ids, xyxy_list):
-                        x1, y1, x2, y2 = map(int, box)
-                        pad_x = int((x2 - x1) * 0.3)
-                        pad_y = int((y2 - y1) * 0.3)
-                        
-                        rx1, ry1 = max(0, x1 - pad_x), max(0, y1 - pad_y)
-                        rx2, ry2 = min(img_w, x2 + pad_x), min(img_h, y2 + pad_y)
-                        
-                        if rx2 <= rx1 or ry2 <= ry1:
-                            continue
-
-                        # Snap to pollen edges via OpenCV contours
-                        roi = img[ry1:ry2, rx1:rx2]
-                        try:
-                            gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-                            blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-                            _, thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-                            
-                            kernel = np.ones((3, 3), np.uint8)
-                            thresh = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel, iterations=1)
-                            
-                            contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-                            if contours:
-                                orig_cx_roi = (x1 + x2) / 2.0 - rx1
-                                orig_cy_roi = (y1 + y2) / 2.0 - ry1
-                                
-                                best_contour = None
-                                min_dist = float('inf')
-                                
-                                for cnt in contours:
-                                    if cv2.contourArea(cnt) < 10: continue
-                                    br_x, br_y, br_w, br_h = cv2.boundingRect(cnt)
-                                    cnt_cx = br_x + br_w / 2.0
-                                    cnt_cy = br_y + br_h / 2.0
-                                    
-                                    dist = (cnt_cx - orig_cx_roi)**2 + (cnt_cy - orig_cy_roi)**2
-                                    if dist < min_dist:
-                                        min_dist = dist
-                                        best_contour = cnt
-                                
-                                if best_contour is None:
-                                    raise ValueError("No valid contour")
-                                
-                                cx, cy, cw, ch = cv2.boundingRect(best_contour)
-                                pad_w, pad_h = int(cw * 0.08), int(ch * 0.08)
-                                new_x1 = max(0, rx1 + cx - pad_w)
-                                new_y1 = max(0, ry1 + cy - pad_h)
-                                new_x2 = min(img_w, rx1 + cx + cw + pad_w)
-                                new_y2 = min(img_h, ry1 + cy + ch + pad_h)
-
-                                w_norm = (new_x2 - new_x1) / img_w
-                                h_norm = (new_y2 - new_y1) / img_h
-                                x_center_norm = (new_x1 + new_x2) / 2.0 / img_w
-                                y_center_norm = (new_y1 + new_y2) / 2.0 / img_h
-                            else:
-                                raise ValueError("No contour")
-                        except Exception:
-                            w_norm = (x2 - x1) / img_w
-                            h_norm = (y2 - y1) / img_h
-                            x_center_norm = (x1 + x2) / 2.0 / img_w
-                            y_center_norm = (y1 + y2) / 2.0 / img_h
-
-                        f.write(f"{int(cls_id)} {x_center_norm:.6f} {y_center_norm:.6f} {w_norm:.6f} {h_norm:.6f}\n")
-
-    if mode == "Count & Analyze":
-        with pd.ExcelWriter(str(out_dir / "pollen_counts.xlsx"), engine="openpyxl") as writer:
-            pd.DataFrame(summary_rows).to_excel(writer, sheet_name="Summary", index=False)
-            if detail_rows:
-                pd.DataFrame(detail_rows).to_excel(writer, sheet_name="Detections", index=False)
-        return summary_rows
-    else:
-        return []
+                    w_norm = (x2 - x1) / img_w
+                    h_norm = (y2 - y1) / img_h
+                    x_center_norm = (x1 + x2) / 2.0 / img_w
+                    y_center_norm = (y1 + y2) / 2.0 / img_h
+                    f.write(f"{int(cls_id)} {x_center_norm:.6f} {y_center_norm:.6f} {w_norm:.6f} {h_norm:.6f} {conf_val:.6f}\n")
 
 
-def show_results_viewer(parent, summary_rows, in_dir, out_dir):
-    """Post-inference image viewer with zoom-on-hover."""
-    if not summary_rows:
-        return
-    viewer = tk.Toplevel(parent)
-    viewer.title("Results Viewer")
-    viewer.geometry("1000x600")
 
-    current_idx = [0]
-    top_frame = ttk.Frame(viewer)
-    top_frame.pack(side=tk.TOP, fill=tk.X, pady=5)
-
-    btn_prev = ttk.Button(top_frame, text="<< Previous")
-    btn_prev.pack(side=tk.LEFT, padx=10)
-
-    def save_current_image():
-        idx = current_idx[0]
-        row = summary_rows[idx]
-        img_name = row["filename"]
-        annot_path = out_dir / "annotated" / img_name
-
-        if not annot_path.exists():
-            messagebox.showerror("Error", "Annotated image not found!")
-            return
-
-        default_name = f"{Path(img_name).stem}_annotated.jpg"
-        save_path = filedialog.asksaveasfilename(
-            title="Save Annotated Image",
-            initialfile=default_name,
-            defaultextension=".jpg",
-            filetypes=[("JPEG files", "*.jpg"), ("All files", "*.*")],
-        )
-        if save_path:
-            shutil.copy(annot_path, save_path)
-
-    btn_save = ttk.Button(top_frame, text="Save Image", command=save_current_image)
-    btn_save.pack(side=tk.LEFT, padx=5)
-
-    zoom_enabled = tk.BooleanVar(value=True)
-    ttk.Checkbutton(top_frame, text="Zoom on Hover", variable=zoom_enabled).pack(side=tk.LEFT, padx=10)
-
-    lbl_info = ttk.Label(top_frame, text="", font=("TkDefaultFont", 12, "bold"))
-    lbl_info.pack(side=tk.LEFT, expand=True)
-
-    btn_next = ttk.Button(top_frame, text="Next >>")
-    btn_next.pack(side=tk.RIGHT, padx=10)
-
-    img_frame = ttk.Frame(viewer)
-    img_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=10)
-
-    lbl_orig = ttk.Label(img_frame, text="Original")
-    lbl_orig.pack(side=tk.LEFT, expand=True, fill=tk.BOTH)
-
-    lbl_annot = ttk.Label(img_frame, text="Annotated")
-    lbl_annot.pack(side=tk.RIGHT, expand=True, fill=tk.BOTH)
-
-    bot_frame = ttk.Frame(viewer)
-    bot_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=10)
-    lbl_meta = ttk.Label(bot_frame, text="", font=("TkDefaultFont", 11))
-    lbl_meta.pack()
-
-    viewer_state = {
-        "orig_full": None, "annot_full": None,
-        "orig_tk": None, "annot_tk": None,
-        "orig_scale": 1.0, "annot_scale": 1.0,
-        "zoom_tk": None,
-    }
-
-    zoom_win = tk.Toplevel(viewer)
-    zoom_win.withdraw()
-    zoom_win.overrideredirect(True)
-    zoom_lbl = tk.Label(zoom_win, bd=2, relief="solid", bg="#CCCCCC")
-    zoom_lbl.pack()
-
-    def handle_hover(event, img_type, lbl):
-        if not zoom_enabled.get():
-            return zoom_win.withdraw()
-        full_img = viewer_state.get(f"{img_type}_full")
-        tk_img = viewer_state.get(f"{img_type}_tk")
-        if not full_img or not tk_img:
-            return
-
-        offset_x = (lbl.winfo_width() - tk_img.width()) // 2
-        offset_y = (lbl.winfo_height() - tk_img.height()) // 2
-        img_x, img_y = event.x - offset_x, event.y - offset_y
-        if img_x < 0 or img_x > tk_img.width() or img_y < 0 or img_y > tk_img.height():
-            return zoom_win.withdraw()
-
-        scale = viewer_state[f"{img_type}_scale"]
-        full_x, full_y = int(img_x * scale), int(img_y * scale)
-
-        crop_size = 200
-        box = (full_x - crop_size // 2, full_y - crop_size // 2, full_x + crop_size // 2, full_y + crop_size // 2)
-        crop = full_img.crop(box).resize((crop_size * 2, crop_size * 2), getattr(Image, "Resampling", Image).LANCZOS)
-
-        viewer_state["zoom_tk"] = ImageTk.PhotoImage(crop)
-        zoom_lbl.config(image=viewer_state["zoom_tk"])
-        zoom_win.geometry(f"+{event.x_root + 20}+{event.y_root + 20}")
-        zoom_win.deiconify()
-        zoom_win.lift()
-
-    lbl_orig.bind("<Motion>", lambda e: handle_hover(e, "orig", lbl_orig))
-    lbl_orig.bind("<Leave>", lambda e: zoom_win.withdraw())
-    lbl_annot.bind("<Motion>", lambda e: handle_hover(e, "annot", lbl_annot))
-    lbl_annot.bind("<Leave>", lambda e: zoom_win.withdraw())
-
-    def update_view():
-        idx = current_idx[0]
-        row = summary_rows[idx]
-        lbl_info.config(text=f"Image {idx + 1} of {len(summary_rows)}: {row['filename']}")
-        lbl_meta.config(text=f"Count: {row['pollen_count']}   |   Avg Conf: {row['avg_confidence']:.2f}")
-
-        orig_path = in_dir / row["filename"]
-        annot_path = out_dir / "annotated" / row["filename"]
-
-        viewer.update_idletasks()
-        w, h = max(400, (viewer.winfo_width() - 40) // 2), max(400, viewer.winfo_height() - 150)
-
-        def load_img(path, img_type):
-            try:
-                full = Image.open(path)
-                viewer_state[f"{img_type}_full"] = full
-                copy = full.copy()
-                copy.thumbnail((w, h), getattr(Image, "Resampling", Image).LANCZOS)
-                viewer_state[f"{img_type}_tk"] = ImageTk.PhotoImage(copy)
-                target = lbl_orig if img_type == "orig" else lbl_annot
-                target.config(image=viewer_state[f"{img_type}_tk"], text="")
-                viewer_state[f"{img_type}_scale"] = full.width / copy.width
-            except Exception:
-                target = lbl_orig if img_type == "orig" else lbl_annot
-                target.config(image="", text="Not found")
-
-        load_img(orig_path, "orig")
-        load_img(annot_path, "annot")
-
-        btn_prev.config(state=tk.NORMAL if idx > 0 else tk.DISABLED)
-        btn_next.config(state=tk.NORMAL if idx < len(summary_rows) - 1 else tk.DISABLED)
-
-    btn_prev.config(command=lambda: (current_idx.__setitem__(0, current_idx[0] - 1), update_view()))
-    btn_next.config(command=lambda: (current_idx.__setitem__(0, current_idx[0] + 1), update_view()))
-    viewer.after(100, update_view)
 
 
 def run_gui():
@@ -400,7 +133,7 @@ def run_gui():
     
     default_weight_name = DEFAULT_WEIGHTS.parent.parent.name if DEFAULT_WEIGHTS else (available_models[-1] if available_models else "")
 
-    var_mode = tk.StringVar(value=saved.get("mode", "Count & Analyze"))
+    default_weight_name = DEFAULT_WEIGHTS.parent.parent.name if DEFAULT_WEIGHTS else (available_models[-1] if available_models else "")
     var_input = tk.StringVar(value=saved.get("input", str(RAW_IMAGES)))
     var_out = tk.StringVar(value=saved.get("output", str(DEFAULT_OUTPUT)))
     
@@ -428,9 +161,6 @@ def run_gui():
             tk.Entry(frame, textvariable=var, font=FONT_INPUT, bg="#F0F0F0", fg="#000000", insertbackground="black", bd=0).pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=4, padx=5)
         if browse_func:
             tk.Button(frame, text="Browse", command=browse_func, bg=BTN_BG, fg=FG, bd=0, cursor="hand2").pack(side=tk.RIGHT, ipadx=5, ipady=2)
-
-    make_row(root, "Mode:", var_mode, is_combo=True, combo_vals=["Count & Analyze", "Auto-Annotate"])
-    tk.Frame(root, height=1, bg=BTN_BG).pack(fill=tk.X, padx=20, pady=10)
 
     make_row(root, "Input Folder:", var_input, lambda: var_input.set(filedialog.askdirectory() or var_input.get()))
     make_row(root, "Output Folder:", var_out, lambda: var_out.set(filedialog.askdirectory() or var_out.get()))
@@ -488,24 +218,8 @@ def run_gui():
         out = Path(var_out.get())
         subprocess.Popen([sys.executable, "scripts/annotate.py", "--images", str(out / "images" / "review"), "--labels", str(out / "labels" / "review")])
 
-    def open_viewer():
-        out = Path(var_out.get())
-        in_dir = Path(var_input.get())
-        csv_path = out / "pollen_counts.xlsx"
-        if not csv_path.exists():
-            messagebox.showinfo("Not Found", "No pollen_counts.xlsx found.\nRun 'Count & Analyze' first!")
-            return
-        try:
-            summary = pd.read_excel(csv_path, sheet_name="Summary").to_dict("records")
-            show_results_viewer(root, summary, in_dir, out)
-        except Exception as e:
-            messagebox.showerror("Error", f"Could not load results: {e}")
-
     btn_open_annot = tk.Button(btn_frame, text="Annotator", font=("Segoe UI", 11, "bold"), bg="#F9E2AF", fg="#11111B", bd=0, cursor="hand2", command=open_annotator)
-    btn_open_annot.pack(side=tk.RIGHT, ipady=6, ipadx=5)
-
-    btn_open_view = tk.Button(btn_frame, text="Viewer", font=("Segoe UI", 11, "bold"), bg="#F9E2AF", fg="#11111B", bd=0, cursor="hand2", command=open_viewer)
-    btn_open_view.pack(side=tk.RIGHT, ipady=6, ipadx=5, padx=(0, 10))
+    btn_open_annot.pack(side=tk.RIGHT, ipady=6, ipadx=5, padx=(0, 10))
 
     def start_processing():
         btn_run.config(state=tk.DISABLED, text="Running...")
@@ -516,7 +230,6 @@ def run_gui():
 
         # Save settings
         save_settings({
-            "mode": var_mode.get(),
             "input": var_input.get(),
             "output": var_out.get(),
             "weights": var_weights.get(),
@@ -553,7 +266,7 @@ def run_gui():
                     )
 
                 summary = run_inference(
-                    mode=var_mode.get(), model=model, image_paths=images,
+                    model=model, image_paths=images,
                     out_dir=out_dir, conf=float(var_conf.get()), iou=float(var_iou.get()), imgsz=int(var_imgsz.get()),
                     device=var_device.get(),
                     box_opacity=float(var_opacity.get()), progress_cb=progress_cb,

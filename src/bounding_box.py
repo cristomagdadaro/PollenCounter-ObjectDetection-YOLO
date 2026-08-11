@@ -37,18 +37,24 @@ class BoundingBox:
         self.is_auto = is_auto
 
     def to_yolo_line(self) -> str:
-        """Serialize to a single YOLO label line. Example: '0 0.512000 0.340000 0.080000 0.090000'"""
-        return f"{self.class_id} {self.x_center:.6f} {self.y_center:.6f} {self.w:.6f} {self.h:.6f}"
+        """Serialize to a single YOLO label line. Example: '0 0.512000 0.340000 0.080000 0.090000 [0.95]'"""
+        base = f"{self.class_id} {self.x_center:.6f} {self.y_center:.6f} {self.w:.6f} {self.h:.6f}"
+        if hasattr(self, 'conf'):
+            return f"{base} {self.conf:.6f}"
+        return base
 
     @classmethod
     def from_yolo_line(cls, line: str) -> Optional["BoundingBox"]:
         """Parse a YOLO label line. Returns None on malformed input."""
         parts = line.strip().split()
-        if len(parts) != 5:
+        if len(parts) < 5:
             return None
         try:
-            cid, xc, yc, w, h = int(parts[0]), float(parts[1]), float(parts[2]), float(parts[3]), float(parts[4])
-            return cls(xc, yc, w, h, cid)
+            cid, xc, yc, w, h = int(float(parts[0])), float(parts[1]), float(parts[2]), float(parts[3]), float(parts[4])
+            box = cls(xc, yc, w, h, cid)
+            if len(parts) >= 6:
+                box.conf = float(parts[5])
+            return box
         except ValueError:
             return None
 

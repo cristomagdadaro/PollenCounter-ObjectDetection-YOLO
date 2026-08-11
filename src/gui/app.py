@@ -66,6 +66,7 @@ class AnnotationApp(UIBuilderMixin, CanvasEventsMixin, RenderingMixin, ActiveLea
         self.images_dir = images_dir
         self.labels_dir = labels_dir
         self.compare_labels_dir = compare_labels_dir
+        self.images_dir.mkdir(parents=True, exist_ok=True)
         self.labels_dir.mkdir(parents=True, exist_ok=True)
 
         # Ensure val dirs exist
@@ -447,6 +448,8 @@ class AnnotationApp(UIBuilderMixin, CanvasEventsMixin, RenderingMixin, ActiveLea
                 self.fit_mode.set(config["fit_mode"])
             if "show_violet" in config and hasattr(self, 'show_violet'):
                 self.show_violet.set(config["show_violet"])
+            if "embed_annotations" in config and hasattr(self, 'embed_annotations'):
+                self.embed_annotations.set(config["embed_annotations"])
                 
             if "current_image" in config and getattr(self, 'image_paths', None):
                 target = config["current_image"]
@@ -499,6 +502,8 @@ class AnnotationApp(UIBuilderMixin, CanvasEventsMixin, RenderingMixin, ActiveLea
             updates["fit_mode"] = self.fit_mode.get()
         if hasattr(self, 'show_violet'):
             updates["show_violet"] = self.show_violet.get()
+        if hasattr(self, 'embed_annotations'):
+            updates["embed_annotations"] = self.embed_annotations.get()
         if hasattr(self, 'image_paths') and hasattr(self, 'current_idx') and self.image_paths and self.current_idx < len(self.image_paths):
             updates["current_image"] = self.image_paths[self.current_idx].name
         save_settings(updates)

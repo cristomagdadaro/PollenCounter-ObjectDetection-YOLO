@@ -231,6 +231,21 @@ class UIBuilderMixin:
         self.dataset_combo.pack(fill=tk.X, padx=12, pady=(0, 8))
         self.dataset_combo.bind("<<ComboboxSelected>>", self._change_dataset)
 
+        self.embed_annotations = tk.BooleanVar(value=False)
+        self.chk_embed_annotations = tk.Checkbutton(
+            sidebar, text="Embed Annotations", variable=self.embed_annotations,
+            bg=SIDEBAR_BG, fg=TEXT_COLOR, selectcolor=BG_COLOR,
+            activebackground=SIDEBAR_BG, activeforeground=TEXT_COLOR
+        )
+        self.chk_embed_annotations.pack(pady=(0, 4), anchor=tk.W, padx=10)
+
+        self.btn_export_dataset = tk.Button(
+            sidebar, text="Export Dataset", bg=ACCENT, fg="white",
+            activebackground="#6D28D9", font=("Segoe UI", 9, "bold"), cursor="hand2", bd=0, pady=4,
+            command=self.export_dataset
+        )
+        self.btn_export_dataset.pack(fill=tk.X, padx=12, pady=(0, 8))
+
         tk.Frame(sidebar, bg="#CCCCCC", height=1).pack(fill=tk.X, padx=12, pady=4)
 
         # ── Sidebar: file info ──────────────────────────────────────

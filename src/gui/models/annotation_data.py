@@ -98,16 +98,9 @@ class AnnotationData:
         if lbl_path and lbl_path.exists():
             with open(lbl_path, "r") as f:
                 for line in f:
-                    parts = line.strip().split()
-                    if len(parts) >= 5:
-                        try:
-                            # class_id, cx, cy, w, h
-                            self.boxes.append(BoundingBox(
-                                float(parts[1]), float(parts[2]),
-                                float(parts[3]), float(parts[4])
-                            ))
-                        except ValueError:
-                            pass
+                    box = BoundingBox.from_yolo_line(line)
+                    if box:
+                        self.boxes.append(box)
 
     def save_labels(self):
         """Write current bounding boxes to YOLO format .txt file."""
