@@ -513,6 +513,26 @@ class AnnotationApp(UIBuilderMixin, CanvasEventsMixin, RenderingMixin, ActiveLea
         self.root.destroy()
 
     # ════════════════════════════════════════════════════════════════
+    #  SEARCH FUNCTION
+    # ════════════════════════════════════════════════════════════════
+    def _search_image(self, event=None):
+        query = self.search_var.get().strip().lower()
+        if not query: return
+            
+        for i, path in enumerate(self.image_paths):
+            if query in path.name.lower():
+                self.current_idx = i
+                self._load_image()
+                self.search_entry.config(bg="#10B981", fg="white")
+                self.root.after(500, lambda: self.search_entry.config(bg="#FFFFFF", fg="black"))
+                self.canvas.focus_set()
+                return
+                
+        # Not found
+        self.search_entry.config(bg="#EF4444", fg="white")
+        self.root.after(500, lambda: self.search_entry.config(bg="#FFFFFF", fg="black"))
+
+    # ════════════════════════════════════════════════════════════════
     #  TOOLS MENU — Integrated Child Windows
     # ════════════════════════════════════════════════════════════════
 

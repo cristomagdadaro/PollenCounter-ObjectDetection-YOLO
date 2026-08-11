@@ -1,0 +1,11 @@
+# YOLO Dataset Configuration - Sliced Version
+# ----------------------------------------------------------------------
+# This config points to the 'datasets_sliced' folder which contains 
+# high-resolution patches for Patch-Based Training.
+
+path: ./datasets_sliced
+train: images/train
+val: images/val
+
+names:
+  0: pollen

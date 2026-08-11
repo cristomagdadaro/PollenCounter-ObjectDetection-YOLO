@@ -5,6 +5,7 @@ import pandas as pd
 import yaml
 import os
 import psutil
+import subprocess
 from pathlib import Path
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -58,8 +59,32 @@ class TrainingMonitor(tk.Tk):
         sidebar = ttk.Frame(self, width=280)
         sidebar.pack(side=tk.LEFT, fill=tk.Y, padx=20, pady=20)
         
+        # --- Launch Section ---
+        ttk.Label(sidebar, text="Launch Training", style="Header.TLabel").pack(anchor="w", pady=(0, 10))
+        
+        form = tk.Frame(sidebar, bg="#1E1E1E")
+        form.pack(fill=tk.X, pady=(0, 15))
+        
+        tk.Label(form, text="Epochs:", bg="#1E1E1E", fg="white").grid(row=0, column=0, sticky="w", pady=2)
+        self.ent_epochs = ttk.Entry(form, width=8)
+        self.ent_epochs.insert(0, "100")
+        self.ent_epochs.grid(row=0, column=1, sticky="w", padx=5, pady=2)
+        
+        tk.Label(form, text="Batch Size:", bg="#1E1E1E", fg="white").grid(row=1, column=0, sticky="w", pady=2)
+        self.ent_batch = ttk.Entry(form, width=8)
+        self.ent_batch.insert(0, "4")
+        self.ent_batch.grid(row=1, column=1, sticky="w", padx=5, pady=2)
+        
+        tk.Label(form, text="Img Size:", bg="#1E1E1E", fg="white").grid(row=2, column=0, sticky="w", pady=2)
+        self.ent_imgsz = ttk.Entry(form, width=8)
+        self.ent_imgsz.insert(0, "512")
+        self.ent_imgsz.grid(row=2, column=1, sticky="w", padx=5, pady=2)
+        
+        self.btn_start = tk.Button(sidebar, text="🚀 Start Training", bg="#00E676", fg="#11111B", font=("Segoe UI", 11, "bold"), bd=0, cursor="hand2", command=self._start_training)
+        self.btn_start.pack(fill=tk.X, pady=(0, 20), ipady=5)
+        
         # --- Config Section ---
-        ttk.Label(sidebar, text="Training Config", style="Header.TLabel").pack(anchor="w", pady=(0, 10))
+        ttk.Label(sidebar, text="Current Config", style="Header.TLabel").pack(anchor="w", pady=(0, 10))
         self.lbl_folder = ttk.Label(sidebar, text="Folder: N/A")
         self.lbl_folder.pack(anchor="w", pady=2)
         self.lbl_model = ttk.Label(sidebar, text="Model: N/A")
@@ -470,6 +495,41 @@ class TrainingMonitor(tk.Tk):
                 messagebox.showinfo("Stopped", "Training process has been terminated.")
             else:
                 messagebox.showwarning("Not Found", "Could not find a running train.py process.")
+
+    def _start_training(self):
+        # Validate inputs
+        try:
+            epochs = int(self.ent_epochs.get())
+            batch = int(self.ent_batch.get())
+            imgsz = int(self.ent_imgsz.get())
+        except ValueError:
+            messagebox.showerror("Error", "Please enter valid numbers for epochs, batch size, and image size.")
+            return
+            
+        # Check if already running
+        for proc in psutil.process_iter(['name', 'cmdline']):
+            try:
+                cmd = proc.info['cmdline']
+                if cmd and 'python' in proc.info['name'].lower() and 'train.py' in ' '.join(cmd):
+                    messagebox.showerror("Error", "A training process is already running!")
+                    return
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+                
+        # Launch process
+        script_path = PROJECT_ROOT / "scripts" / "train.py"
+        cmd = [
+            sys.executable, str(script_path),
+            "--epochs", str(epochs),
+            "--batch", str(batch),
+            "--imgsz", str(imgsz)
+        ]
+        
+        try:
+            subprocess.Popen(cmd, cwd=str(PROJECT_ROOT))
+            messagebox.showinfo("Started", "Training has started in the background! The graph will update automatically in a few moments.")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to start training: {e}")
 
 if __name__ == "__main__":
     app = TrainingMonitor()

@@ -8,8 +8,18 @@ Usage:
 
 from pathlib import Path
 
-# Root of the git repository (one level above src/).
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+import sys
+import os
+
+# Root of the workspace
+if "POLLEN_WORKSPACE" in os.environ:
+    PROJECT_ROOT = Path(os.environ["POLLEN_WORKSPACE"]).resolve()
+elif getattr(sys, 'frozen', False):
+    # In PyInstaller, fallback to the folder containing the .exe
+    PROJECT_ROOT = Path(sys.executable).parent.resolve()
+else:
+    # Source mode
+    PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 # ── Dataset paths ────────────────────────────────────────────────────
 DATASET_ROOT    = PROJECT_ROOT / "datasets_sliced"

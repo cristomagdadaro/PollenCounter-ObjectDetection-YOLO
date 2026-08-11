@@ -247,7 +247,28 @@ class UIBuilderMixin:
         self.btn_export_dataset.pack(fill=tk.X, padx=12, pady=(0, 8))
 
         tk.Frame(sidebar, bg="#CCCCCC", height=1).pack(fill=tk.X, padx=12, pady=4)
-
+        
+        # ── Sidebar: Search Image ──────────────────────────
+        tk.Label(
+            sidebar, text="Search File", font=("Segoe UI", 11, "bold"),
+            bg=SIDEBAR_BG, fg=ACCENT
+        ).pack(anchor=tk.W, padx=12, pady=(10, 2))
+        
+        search_frame = tk.Frame(sidebar, bg=SIDEBAR_BG)
+        search_frame.pack(fill=tk.X, padx=12, pady=(0, 8))
+        
+        self.search_var = tk.StringVar()
+        self.search_entry = tk.Entry(
+            search_frame, textvariable=self.search_var, width=15, font=("Segoe UI", 10),
+            bg="#FFFFFF", fg="black", insertbackground="black", bd=0
+        )
+        self.search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        self.search_entry.bind("<Return>", lambda e: self._search_image())
+        
+        tk.Button(search_frame, text="Go", bg="#4B5563", fg="white", font=("Segoe UI", 8, "bold"), bd=0, cursor="hand2", command=self._search_image).pack(side=tk.RIGHT)
+        
+        tk.Frame(sidebar, bg="#CCCCCC", height=1).pack(fill=tk.X, padx=12, pady=4)
+        
         # ── Sidebar: file info ──────────────────────────────────────
         tk.Label(
             sidebar, text="Current Image", font=("Segoe UI", 11, "bold"),

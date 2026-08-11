@@ -9,3 +9,5 @@ runs/detect/frcnn/*
 *.cache
 *.npy
 runs/detect/predict**
+build/*
+dist/PollenCounterStudio/_internal/*
