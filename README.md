@@ -143,7 +143,10 @@ Launch a specialized GUI to visually demonstrate how the YOLO model processes an
 .venv\Scripts\python.exe scripts/visualize.py
 ```
 
-This tool intercepts the internal forward pass of the neural network. You can visually step through every convolutional layer and SPPF block to see exactly how the AI extracts edges, shapes, and pollen grains from raw pixels.
+This tool intercepts the internal forward pass of the neural network. You can visually step through every convolutional layer and SPPF block to see exactly how the AI extracts edges, shapes, and pollen grains from raw pixels. It features:
+- **Pretrained vs Trained:** Easily swap between raw YOLO models and your fine-tuned models to compare feature extraction.
+- **Adjustable Thresholds:** Tweak Confidence and IoU directly in the GUI.
+- **Custom Bounding Boxes:** The final layer draws clean, transparent bounding boxes specifically designed for high-visibility visual analysis.
 
 ## Project Structure
 

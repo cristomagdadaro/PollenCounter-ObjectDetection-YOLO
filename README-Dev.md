@@ -55,7 +55,8 @@ This project has evolved through continuous testing to optimise accuracy. Below 
 ### 11. Feature Map Extraction & Visualization
 - **The Challenge:** Object detection models are often treated as black boxes, making it hard to prove or demonstrate *how* the AI finds pollen.
 - **The Solution:** We leverage Ultralytics' native `visualize=True` parameter during prediction (`model.predict(..., visualize=True)`). This intercepts the PyTorch forward hooks and dumps the 2D grid activations for every single internal layer.
-- **Implementation:** `scripts/visualize_features.py` provides a GUI to run this extraction and visually page through the neural network's layers, providing immense educational and debugging value.
+- **Implementation:** `scripts/visualize.py` provides a GUI to run this extraction and visually page through the neural network's layers.
+- **Custom Bounding Boxes & Comparison:** The tool leverages PIL to bypass YOLO's native drawing engine, rendering crisp, custom transparent bounding boxes for the final layer. It also dynamically loads base models from `pretrained_models/` alongside trained runs, allowing direct comparison of feature extraction evolution.
 
 ---
 
