@@ -39,11 +39,15 @@ class UIBuilderMixin:
             
         tools_menu.add_command(label="Smart Annotator", command=lambda: spawn_tool("annotate"))
         tools_menu.add_command(label="Batch Inference", command=lambda: spawn_tool("inference"))
-        tools_menu.add_separator()
-        tools_menu.add_command(label="Training Dashboard", command=lambda: spawn_tool("monitor"))
-        tools_menu.add_command(label="Dataset Analytics", command=lambda: spawn_tool("dataset_analytics"))
-        tools_menu.add_command(label="Augmentation Preview", command=lambda: spawn_tool("augment_preview"))
-        tools_menu.add_command(label="Export Model", command=lambda: spawn_tool("export"))
+        tools_menu.add_command(label="Import Images", command=self._import_images)
+        tools_menu.add_command(label="Error Logs View", command=lambda: spawn_tool("view_logs"))
+        
+        if not getattr(sys, 'frozen', False):
+            tools_menu.add_separator()
+            tools_menu.add_command(label="Training Dashboard", command=lambda: spawn_tool("monitor"))
+            tools_menu.add_command(label="Dataset Analytics", command=lambda: spawn_tool("dataset_analytics"))
+            tools_menu.add_command(label="Augmentation Preview", command=lambda: spawn_tool("augment_preview"))
+            tools_menu.add_command(label="Export Model", command=lambda: spawn_tool("export"))
 
         # ── Top bar ─────────────────────────────────────────────────
         top = tk.Frame(self.root, bg=ACCENT, height=60)
@@ -51,7 +55,7 @@ class UIBuilderMixin:
         top.pack_propagate(False)
 
         tk.Label(
-            top, text="  Pollen Grain Annotator", font=("Segoe UI", 14, "bold"),
+            top, text="  Pollen Grain Annotator", font=FONT_HEADER,
             bg=ACCENT, fg="white"
         ).pack(side=tk.LEFT, padx=16)
 
@@ -231,9 +235,9 @@ class UIBuilderMixin:
 
         # ── Sidebar: Dataset Set Selection ──────────────────────────
         tk.Label(
-            sidebar, text="Dataset Set", font=("Segoe UI", 11, "bold"),
-            bg=SIDEBAR_BG, fg=ACCENT
-        ).pack(anchor=tk.W, padx=12, pady=(16, 2))
+            sidebar, text="Dataset Selection", font=FONT_LABEL,
+            bg=SIDEBAR_BG, fg=TEXT_COLOR
+        ).pack(anchor=tk.W, padx=12, pady=(12, 4))
         
         combo_values = ["Train", "Validation", "Excluded"]
         if self.current_set not in combo_values:
@@ -263,8 +267,8 @@ class UIBuilderMixin:
         
         # ── Sidebar: Search Image ──────────────────────────
         tk.Label(
-            sidebar, text="Search File", font=("Segoe UI", 11, "bold"),
-            bg=SIDEBAR_BG, fg=ACCENT
+            sidebar, text="Batch Tools", font=FONT_LABEL,
+            bg=SIDEBAR_BG, fg=TEXT_COLOR
         ).pack(anchor=tk.W, padx=12, pady=(10, 2))
         
         search_frame = tk.Frame(sidebar, bg=SIDEBAR_BG)
@@ -300,13 +304,13 @@ class UIBuilderMixin:
         nav_btn_style = {"font": ("Segoe UI", 9, "bold"), "cursor": "hand2", "bd": 0, "pady": 4}
         
         self.prev_btn = tk.Button(
-            nav_frame, text="◀ Prev", bg="#888888", fg="white",
-            activebackground="#666666", command=self._prev_image, **nav_btn_style
+            nav_frame, text="< Prev", bg="#888888", fg="white",
+            activebackground="#555555", command=self._prev_image, **nav_btn_style
         )
-        self.prev_btn.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 2))
+        self.prev_btn.pack(side=tk.LEFT, padx=2)
         
         self.next_btn = tk.Button(
-            nav_frame, text="Next ▶", bg=ACCENT, fg="white",
+            nav_frame, text="Next >", bg="#888888", fg="white",
             activebackground="#6D28D9", command=self._next_image, **nav_btn_style
         )
         self.next_btn.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(2, 0))
@@ -495,8 +499,8 @@ class UIBuilderMixin:
         tk.Frame(sidebar, bg="#CCCCCC", height=1).pack(fill=tk.X, padx=12, pady=8)
 
         tk.Label(
-            sidebar, text="Dataset Management", font=("Segoe UI", 11, "bold"),
-            bg=SIDEBAR_BG, fg=ACCENT
+            sidebar, text="Dataset Management", font=FONT_LABEL,
+            bg=SIDEBAR_BG, fg=TEXT_COLOR
         ).pack(anchor=tk.W, padx=12, pady=(4, 2))
 
         self.move_train_btn = tk.Button(

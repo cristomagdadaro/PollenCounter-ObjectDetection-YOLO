@@ -7,17 +7,24 @@ Usage:
 """
 
 # ── Colors ───────────────────────────────────────────────────────────
-BOX_COLOR       = "#00AA00"     # Default box outline (green)
-BOX_COLOR_HOVER = "#FF0000"     # Hovered box (red)
-ACTIVE_BOX_COLOR = "#CCCC00"    # Box being drawn (yellow)
-BG_COLOR        = "#FFFFFF"     # Main background
-SIDEBAR_BG      = "#F0F0F0"     # Sidebar panel
-ACCENT          = "#0000FF"     # Headers, primary buttons
-TEXT_COLOR       = "#000000"     # Default text
-PROGRESS_DONE   = "#00AA00"     # Progress bar filled
-PROGRESS_TODO   = "#CCCCCC"     # Progress bar empty
-HUMAN_COLOR     = "#00AA00"     # Human label overlay (green)
-MODEL_COLOR     = "#FF0000"     # Model prediction overlay (red)
+BOX_COLOR       = "#10B981"     # Emerald Green
+BOX_COLOR_HOVER = "#EF4444"     # Red
+ACTIVE_BOX_COLOR = "#F59E0B"    # Amber
+BG_COLOR        = "#F8FAFC"     # Dashboard Light Background
+SIDEBAR_BG      = "#FFFFFF"     # Surface Card Background
+ACCENT          = "#3B82F6"     # Primary Blue
+TEXT_COLOR       = "#1E293B"     # Dark Slate Header
+TEXT_MUTED      = "#64748B"     # Muted text
+PROGRESS_DONE   = "#10B981"     
+PROGRESS_TODO   = "#E2E8F0"     
+HUMAN_COLOR     = "#10B981"     
+MODEL_COLOR     = "#EF4444"     
+
+# ── Fonts ────────────────────────────────────────────────────────────
+FONT_FAMILY     = "Roboto"
+FONT_MAIN       = (FONT_FAMILY, 10)
+FONT_HEADER     = (FONT_FAMILY, 14, "bold")
+FONT_LABEL      = (FONT_FAMILY, 11, "bold")
 
 # Annotation Box Colors (Hex and RGB)
 OVERLAP_80_HEX  = "#FF0032"

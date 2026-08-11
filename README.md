@@ -79,19 +79,20 @@ python scripts/train_rcnn.py --epochs 100      # Override epoch count
 python scripts/train_rcnn.py --val-only        # Evaluate saved weights (mAP50 / mAP50-95)
 ```
 
-### 3. Annotation, Inference & Comparison (`annotate.py`)
+### 3. The Unified Launcher (`launcher.py`)
 
-Launch the unified desktop GUI to annotate data, run inference, or compare model predictions.
+Launch the unified desktop GUI to access all tools from a single dashboard.
 
 ```bash
-python scripts/annotate.py
+python launcher.py
 ```
 
-The GUI provides three integrated tabs:
+The launcher provides access to:
+- **Smart Annotator** — Draw and correct bounding boxes with auto-snapping, Regional Recounting, and dataset management (Train/Val/Excluded). Also includes a new **Import Images** tool.
+- **Batch Inference** — Run your trained model on new images (Count & Analyze or Auto-Annotate mode), with optional SAHI for high-res sliced inference.
+- **Error Logs View** — View application crash and error logs (caught gracefully by the new Global Error Logger).
 
-- **🏷️ Annotate** — Draw and correct bounding boxes with auto-snapping, Regional Recounting, and dataset management (Train/Val/Excluded).
-- **🔍 Inference** — Run your trained model on new images (Count & Analyze or Auto-Annotate mode), with optional SAHI for high-res sliced inference.
-- **📊 Compare** — Side-by-side view of human labels vs model predictions with an automatic TP/FP/FN/Precision/Recall/F1 Excel report generator.
+*(Note: When compiled to a standalone `.exe`, developer-only tools like the Neural Net Visualizer, Training Monitor, and Export Model are automatically hidden to keep the interface clean for end-users).*
 
 ### 4. Dataset Preprocessing (`src/preprocessing` & `src/slicer`)
 
@@ -132,7 +133,7 @@ python scripts/monitor.py
 ```
 
 - **Live Dynamic Graphs:** Automatically reads `results.csv` every 5 seconds and renders interactive Matplotlib graphs for `mAP50`, `mAP50-95`, and `box_loss`.
-- **Status Dashboard:** Instantly see your Max Accuracy and Current Epoch without needing to parse the scrolling terminal output.
+- **Status Dashboard:** Instantly see your Max Accuracy, Current Epoch, and adjust the **Patience** parameter directly from the UI.
 - **Process Management:** Includes a dedicated "Stop Training" button that gracefully hooks into the Windows process tree to safely terminate training if things go wrong.
 
 ### 7. Neural Network Visualizer (`visualize.py`)

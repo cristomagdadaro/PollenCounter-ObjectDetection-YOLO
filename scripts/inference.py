@@ -26,7 +26,7 @@ from ultralytics import YOLO
 from src.paths import PROJECT_ROOT, RAW_IMAGES, DEFAULT_OUTPUT, IMAGE_EXTS
 from src.model_utils import get_latest_weights, collect_images
 from src.settings import load_settings, save_settings
-from src.theme import FONT_LABEL, FONT_INPUT
+from src.theme import BG_COLOR, SIDEBAR_BG, ACCENT, TEXT_COLOR, FONT_MAIN, FONT_HEADER, FONT_LABEL
 
 DEFAULT_WEIGHTS = get_latest_weights()
 
@@ -115,14 +115,9 @@ def run_gui():
     root = tk.Tk()
     root.title("Unified Inference Tool")
     root.geometry("650x700")
-    root.configure(bg="#1E1E2E")
+    root.configure(bg=BG_COLOR)
 
-    BG = "#FFFFFF"
-    FG = "#000000"
-    ACCENT_CLR = "#0000FF"
-    BTN_BG = "#CCCCCC"
-
-    tk.Label(root, text="Unified YOLO Inference", font=("Segoe UI", 14, "bold"), bg=BG, fg=ACCENT_CLR).pack(pady=10)
+    tk.Label(root, text="Unified YOLO Inference", font=FONT_HEADER, bg=BG_COLOR, fg=TEXT_COLOR).pack(pady=(20, 10))
 
     saved = load_settings()
 
@@ -151,16 +146,16 @@ def run_gui():
     var_sahi_slice = tk.StringVar(value=str(saved.get("sahi_slice", "512")))
 
     def make_row(parent, label_text, var, browse_func=None, is_combo=False, combo_vals=None):
-        frame = tk.Frame(parent, bg=BG)
+        frame = tk.Frame(parent, bg=BG_COLOR)
         frame.pack(fill=tk.X, padx=20, pady=5)
-        tk.Label(frame, text=label_text, font=FONT_LABEL, bg=BG, fg=FG, width=15, anchor="w").pack(side=tk.LEFT)
+        tk.Label(frame, text=label_text, font=FONT_LABEL, bg=BG_COLOR, fg=TEXT_COLOR, width=15, anchor="w").pack(side=tk.LEFT)
         if is_combo:
-            cb = ttk.Combobox(frame, textvariable=var, values=combo_vals, state="readonly", font=FONT_INPUT)
+            cb = ttk.Combobox(frame, textvariable=var, values=combo_vals, state="readonly", font=FONT_MAIN)
             cb.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
         else:
-            tk.Entry(frame, textvariable=var, font=FONT_INPUT, bg="#F0F0F0", fg="#000000", insertbackground="black", bd=0).pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=4, padx=5)
+            tk.Entry(frame, textvariable=var, font=FONT_MAIN, bg=SIDEBAR_BG, fg=TEXT_COLOR, insertbackground=TEXT_COLOR, bd=0).pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=4, padx=5)
         if browse_func:
-            tk.Button(frame, text="Browse", command=browse_func, bg=BTN_BG, fg=FG, bd=0, cursor="hand2").pack(side=tk.RIGHT, ipadx=5, ipady=2)
+            tk.Button(frame, text="Browse", command=browse_func, bg="#E2E8F0", fg=TEXT_COLOR, font=FONT_MAIN, bd=0, cursor="hand2").pack(side=tk.RIGHT, ipadx=10, ipady=4)
 
     make_row(root, "Input Folder:", var_input, lambda: var_input.set(filedialog.askdirectory() or var_input.get()))
     make_row(root, "Output Folder:", var_out, lambda: var_out.set(filedialog.askdirectory() or var_out.get()))
@@ -172,26 +167,26 @@ def run_gui():
     make_row(root, "Device:", var_device)
 
     # SAHI Frame
-    frame_sahi = tk.Frame(root, bg=BG)
+    frame_sahi = tk.Frame(root, bg=BG_COLOR)
     frame_sahi.pack(fill=tk.X, padx=20, pady=5)
-    tk.Label(frame_sahi, text="SAHI (High Acc):", font=FONT_LABEL, bg=BG, fg=FG, width=15, anchor="w").pack(side=tk.LEFT)
-    tk.Checkbutton(frame_sahi, text="Enable Sliced Inference", variable=var_use_sahi, bg=BG, fg=FG, activebackground=BG, selectcolor=BG).pack(side=tk.LEFT)
-    tk.Label(frame_sahi, text="Slice Size:", font=FONT_LABEL, bg=BG, fg=FG).pack(side=tk.LEFT, padx=(10, 5))
-    tk.Entry(frame_sahi, textvariable=var_sahi_slice, font=FONT_INPUT, bg="#F0F0F0", fg="#000000", width=8, bd=0).pack(side=tk.LEFT, ipady=4)
+    tk.Label(frame_sahi, text="SAHI (High Acc):", font=FONT_LABEL, bg=BG_COLOR, fg=TEXT_COLOR, width=15, anchor="w").pack(side=tk.LEFT)
+    tk.Checkbutton(frame_sahi, text="Enable Sliced Inference", variable=var_use_sahi, bg=BG_COLOR, fg=TEXT_COLOR, activebackground=BG_COLOR, selectcolor=BG_COLOR, font=FONT_MAIN).pack(side=tk.LEFT)
+    tk.Label(frame_sahi, text="Slice Size:", font=FONT_LABEL, bg=BG_COLOR, fg=TEXT_COLOR).pack(side=tk.LEFT, padx=(10, 5))
+    tk.Entry(frame_sahi, textvariable=var_sahi_slice, font=FONT_MAIN, bg=SIDEBAR_BG, fg=TEXT_COLOR, width=8, bd=0).pack(side=tk.LEFT, ipady=4)
 
-    frame_op = tk.Frame(root, bg=BG)
+    frame_op = tk.Frame(root, bg=BG_COLOR)
     frame_op.pack(fill=tk.X, padx=20, pady=5)
-    tk.Label(frame_op, text="Box Opacity:", font=FONT_LABEL, bg=BG, fg=FG, width=15, anchor="w").pack(side=tk.LEFT)
-    tk.Scale(frame_op, from_=0.0, to=1.0, resolution=0.1, orient=tk.HORIZONTAL, variable=var_opacity, bg=BG, fg=FG, highlightthickness=0, bd=0, activebackground=BTN_BG).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
+    tk.Label(frame_op, text="Box Opacity:", font=FONT_LABEL, bg=BG_COLOR, fg=TEXT_COLOR, width=15, anchor="w").pack(side=tk.LEFT)
+    tk.Scale(frame_op, from_=0.0, to=1.0, resolution=0.1, orient=tk.HORIZONTAL, variable=var_opacity, bg=BG_COLOR, fg=TEXT_COLOR, highlightthickness=0, bd=0, activebackground=ACCENT).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
 
     # Bottom frame (buttons + progress)
-    bot_frame = tk.Frame(root, bg=BG)
+    bot_frame = tk.Frame(root, bg=BG_COLOR)
     bot_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=15)
 
     # Log frame
-    log_frame = tk.Frame(root, bg="#F0F0F0")
+    log_frame = tk.Frame(root, bg=BG_COLOR)
     log_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
-    log_text = tk.Text(log_frame, bg="#F0F0F0", fg="#000000", font=FONT_INPUT, bd=0, state=tk.DISABLED)
+    log_text = tk.Text(log_frame, bg=SIDEBAR_BG, fg=TEXT_COLOR, font=FONT_MAIN, bd=1, relief="solid", highlightthickness=0, state=tk.DISABLED)
     log_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
     def log_cb(message):
@@ -210,7 +205,7 @@ def run_gui():
             log_cb(msg)
         root.after(0, update)
 
-    btn_frame = tk.Frame(bot_frame, bg=BG)
+    btn_frame = tk.Frame(bot_frame, bg=BG_COLOR)
     btn_frame.pack(fill=tk.X)
 
     def open_annotator():
@@ -218,8 +213,8 @@ def run_gui():
         out = Path(var_out.get())
         subprocess.Popen([sys.executable, "scripts/annotate.py", "--images", str(out / "images" / "review"), "--labels", str(out / "labels" / "review")])
 
-    btn_open_annot = tk.Button(btn_frame, text="Annotator", font=("Segoe UI", 11, "bold"), bg="#F9E2AF", fg="#11111B", bd=0, cursor="hand2", command=open_annotator)
-    btn_open_annot.pack(side=tk.RIGHT, ipady=6, ipadx=5, padx=(0, 10))
+    btn_open_annot = tk.Button(btn_frame, text="Annotator", font=FONT_LABEL, bg="#F59E0B", fg="white", bd=0, cursor="hand2", command=open_annotator)
+    btn_open_annot.pack(side=tk.RIGHT, ipady=8, ipadx=10, padx=(0, 10))
 
     def start_processing():
         btn_run.config(state=tk.DISABLED, text="Running...")
@@ -281,8 +276,8 @@ def run_gui():
 
         threading.Thread(target=_thread, daemon=True).start()
 
-    btn_run = tk.Button(btn_frame, text="Run Inference", font=("Segoe UI", 11, "bold"), bg="#A6E3A1", fg="#11111B", bd=0, cursor="hand2", command=start_processing)
-    btn_run.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 10), ipady=6)
+    btn_run = tk.Button(btn_frame, text="Run Inference", font=FONT_LABEL, bg=ACCENT, fg="white", bd=0, cursor="hand2", command=start_processing)
+    btn_run.pack(side=tk.RIGHT, ipady=8, ipadx=20)
 
     root.mainloop()
 

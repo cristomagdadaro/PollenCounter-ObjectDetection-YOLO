@@ -53,6 +53,8 @@ def parse_args() -> argparse.Namespace:
                         help="Batch size (reduce for lower VRAM).")
     parser.add_argument("--device", type=str, default="0",
                         help="Device: '0' for GPU 0, 'cpu' for CPU.")
+    parser.add_argument("--patience", type=int, default=50,
+                        help="Early stopping patience (epochs without improvement).")
     parser.add_argument("--resume", action="store_true",
                         help="Resume training from the last checkpoint.")
     parser.add_argument("--project", type=str,
@@ -167,6 +169,7 @@ def _run_standard_training(args, data_path):
         "imgsz": args.imgsz,
         "batch": args.batch,
         "device": args.device,
+        "patience": args.patience,
         "project": args.project,
         "name": args.name,
         "exist_ok": True,

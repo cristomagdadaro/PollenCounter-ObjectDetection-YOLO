@@ -18,6 +18,7 @@ Write-Host "`n[2/3] Compiling Launcher... (This may take 5-10 minutes)"
     --hidden-import "scripts.export" `
     --hidden-import "sahi" `
     --hidden-import "sahi.predict" `
+    --hidden-import "sahi.postprocess._torchvision_backend" `
     --collect-data "ultralytics" `
     --copy-metadata "torch" `
     --copy-metadata "tqdm" `

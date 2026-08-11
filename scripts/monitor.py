@@ -4,6 +4,7 @@ from tkinter import ttk, messagebox
 import pandas as pd
 import yaml
 import os
+import sys
 import psutil
 import subprocess
 from pathlib import Path
@@ -18,20 +19,20 @@ class TrainingMonitor(tk.Tk):
         super().__init__()
         self.title("YOLO Training Monitor V2")
         self.geometry("1050x850")
-        self.configure(bg="#1E1E1E")
+        self.configure(bg="#F8FAFC")
         
         # Style
         self.style = ttk.Style(self)
         self.style.theme_use('clam')
-        self.style.configure("TFrame", background="#1E1E1E")
-        self.style.configure("TLabel", background="#1E1E1E", foreground="#FFFFFF", font=("Segoe UI", 11))
-        self.style.configure("Header.TLabel", font=("Segoe UI", 16, "bold"), foreground="#00B0FF")
-        self.style.configure("Danger.TButton", font=("Segoe UI", 12, "bold"), background="#D32F2F", foreground="#FFFFFF")
-        self.style.map("Danger.TButton", background=[("active", "#F44336")])
+        self.style.configure("TFrame", background="#F8FAFC")
+        self.style.configure("TLabel", background="#F8FAFC", foreground="#1E293B", font=("Roboto", 11))
+        self.style.configure("Header.TLabel", font=("Roboto", 16, "bold"), foreground="#0F172A", background="#F8FAFC")
+        self.style.configure("Danger.TButton", font=("Roboto", 12, "bold"), background="#EF4444", foreground="#FFFFFF")
+        self.style.map("Danger.TButton", background=[("active", "#DC2626")])
         
-        self.style.configure("Treeview", background="#2E2E2E", foreground="white", fieldbackground="#2E2E2E", rowheight=25, font=("Segoe UI", 10))
-        self.style.configure("Treeview.Heading", background="#1E1E1E", foreground="#00B0FF", font=("Segoe UI", 11, "bold"))
-        self.style.map("Treeview", background=[("selected", "#00B0FF")])
+        self.style.configure("Treeview", background="#FFFFFF", foreground="#1E293B", fieldbackground="#FFFFFF", rowheight=25, font=("Roboto", 10))
+        self.style.configure("Treeview.Heading", background="#E2E8F0", foreground="#0F172A", font=("Roboto", 11, "bold"))
+        self.style.map("Treeview", background=[("selected", "#3B82F6")])
         
         self.active_dir = None
         self.countdown = 10
@@ -62,25 +63,30 @@ class TrainingMonitor(tk.Tk):
         # --- Launch Section ---
         ttk.Label(sidebar, text="Launch Training", style="Header.TLabel").pack(anchor="w", pady=(0, 10))
         
-        form = tk.Frame(sidebar, bg="#1E1E1E")
+        form = tk.Frame(sidebar, bg="#F8FAFC")
         form.pack(fill=tk.X, pady=(0, 15))
         
-        tk.Label(form, text="Epochs:", bg="#1E1E1E", fg="white").grid(row=0, column=0, sticky="w", pady=2)
+        tk.Label(form, text="Epochs:", bg="#F8FAFC", fg="#1E293B", font=("Roboto", 10)).grid(row=0, column=0, sticky="w", pady=2)
         self.ent_epochs = ttk.Entry(form, width=8)
         self.ent_epochs.insert(0, "100")
         self.ent_epochs.grid(row=0, column=1, sticky="w", padx=5, pady=2)
         
-        tk.Label(form, text="Batch Size:", bg="#1E1E1E", fg="white").grid(row=1, column=0, sticky="w", pady=2)
+        tk.Label(form, text="Batch Size:", bg="#F8FAFC", fg="#1E293B", font=("Roboto", 10)).grid(row=1, column=0, sticky="w", pady=2)
         self.ent_batch = ttk.Entry(form, width=8)
         self.ent_batch.insert(0, "4")
         self.ent_batch.grid(row=1, column=1, sticky="w", padx=5, pady=2)
         
-        tk.Label(form, text="Img Size:", bg="#1E1E1E", fg="white").grid(row=2, column=0, sticky="w", pady=2)
+        tk.Label(form, text="Img Size:", bg="#F8FAFC", fg="#1E293B", font=("Roboto", 10)).grid(row=2, column=0, sticky="w", pady=2)
         self.ent_imgsz = ttk.Entry(form, width=8)
         self.ent_imgsz.insert(0, "512")
         self.ent_imgsz.grid(row=2, column=1, sticky="w", padx=5, pady=2)
         
-        self.btn_start = tk.Button(sidebar, text="🚀 Start Training", bg="#00E676", fg="#11111B", font=("Segoe UI", 11, "bold"), bd=0, cursor="hand2", command=self._start_training)
+        tk.Label(form, text="Patience:", bg="#F8FAFC", fg="#1E293B", font=("Roboto", 10)).grid(row=3, column=0, sticky="w", pady=2)
+        self.ent_patience = ttk.Entry(form, width=8)
+        self.ent_patience.insert(0, "50")
+        self.ent_patience.grid(row=3, column=1, sticky="w", padx=5, pady=2)
+        
+        self.btn_start = tk.Button(sidebar, text="Start Training", bg="#10B981", fg="#FFFFFF", font=("Roboto", 11, "bold"), bd=0, cursor="hand2", command=self._start_training)
         self.btn_start.pack(fill=tk.X, pady=(0, 20), ipady=5)
         
         # --- Config Section ---
@@ -103,13 +109,13 @@ class TrainingMonitor(tk.Tk):
         self.lbl_epoch = ttk.Label(sidebar, text="Epoch: 0 / 0")
         self.lbl_epoch.pack(anchor="w", pady=2)
         
-        self.lbl_time_left = ttk.Label(sidebar, text="Max ETA: N/A", foreground="#00B0FF")
+        self.lbl_time_left = ttk.Label(sidebar, text="Max ETA: N/A", foreground="#3B82F6")
         self.lbl_time_left.pack(anchor="w", pady=2)
         
-        self.lbl_early_stop = ttk.Label(sidebar, text="Stop ETA: N/A", foreground="#FF9800")
+        self.lbl_early_stop = ttk.Label(sidebar, text="Stop ETA: N/A", foreground="#F59E0B")
         self.lbl_early_stop.pack(anchor="w", pady=(2, 10))
         
-        self.lbl_best_epoch = ttk.Label(sidebar, text="Best Epoch: 0", font=("Segoe UI", 12, "bold"), foreground="#FFEA00")
+        self.lbl_best_epoch = ttk.Label(sidebar, text="Best Epoch: 0", font=("Roboto", 12, "bold"), foreground="#059669")
         self.lbl_best_epoch.pack(anchor="w", pady=(10, 2))
         
         self.lbl_best_p = ttk.Label(sidebar, text="Precision: 0.00%")
@@ -128,7 +134,7 @@ class TrainingMonitor(tk.Tk):
         self.chk_xaxis.pack(anchor="w", pady=(0, 10))
         
         # --- Refresh Section ---
-        self.lbl_refresh = ttk.Label(sidebar, text="Next Refresh: 10s", foreground="#00E676", font=("Segoe UI", 12, "bold"))
+        self.lbl_refresh = ttk.Label(sidebar, text="Next Refresh: 10s", foreground="#10B981", font=("Roboto", 12, "bold"))
         self.lbl_refresh.pack(anchor="w", pady=(30, 10))
         
         self.btn_refresh = ttk.Button(sidebar, text="🔄 Refresh Now", command=self._manual_refresh)
@@ -146,7 +152,7 @@ class TrainingMonitor(tk.Tk):
         graph_frame = ttk.Frame(right_panel)
         graph_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
         
-        self.fig = Figure(figsize=(8, 7), facecolor='#1E1E1E')
+        self.fig = Figure(figsize=(8, 7), facecolor='#F8FAFC')
         self.ax1 = self.fig.add_subplot(3, 1, 1)
         self.ax2 = self.fig.add_subplot(3, 1, 2)
         self.ax3_train = self.fig.add_subplot(3, 2, 5)
@@ -178,10 +184,9 @@ class TrainingMonitor(tk.Tk):
         self.tree.column("map50", width=100, anchor="center")
         self.tree.column("map5095", width=100, anchor="center")
         
-        # Yellow background, colored text for arrows since Tkinter doesn't support per-cell colors
-        self.tree.tag_configure('live_better', background='#FBC02D', foreground='#006400', font=("Segoe UI", 10, "bold"))
-        self.tree.tag_configure('live_worse', background='#FBC02D', foreground='#B71C1C', font=("Segoe UI", 10, "bold"))
-        self.tree.tag_configure('live_neutral', background='#FBC02D', foreground='#0D47A1', font=("Segoe UI", 10, "bold"))
+        self.tree.tag_configure('live_better', background='#FEF3C7', foreground='#065F46', font=("Roboto", 10, "bold"))
+        self.tree.tag_configure('live_worse', background='#FEF3C7', foreground='#991B1B', font=("Roboto", 10, "bold"))
+        self.tree.tag_configure('live_neutral', background='#FEF3C7', foreground='#1E40AF', font=("Roboto", 10, "bold"))
         
         self.tree.pack(fill=tk.BOTH, expand=True)
         
@@ -339,10 +344,8 @@ class TrainingMonitor(tk.Tk):
             map50_95 = df['metrics/mAP50-95(B)'] * 100
             precision = df['metrics/precision(B)'] * 100
             recall = df['metrics/recall(B)'] * 100
-            box_loss = df['train/box_loss']
             
             # Find the best epoch based on YOLO's actual fitness metric (0.1 * mAP50 + 0.9 * mAP50-95)
-            # This is exactly how YOLO determines best.pt internally
             fitness = (0.1 * map50) + (0.9 * map50_95)
             best_idx = fitness.idxmax()
             best_epoch_num = epochs.iloc[best_idx]
@@ -404,37 +407,37 @@ class TrainingMonitor(tk.Tk):
             
             # Style Axes
             for ax in [self.ax1, self.ax2, self.ax3_train, self.ax3_val]:
-                ax.set_facecolor('#1E1E1E')
-                ax.tick_params(colors='white')
+                ax.set_facecolor('#F8FAFC')
+                ax.tick_params(colors='#1E293B')
                 if self.fix_xaxis.get() and self.max_epochs > 0:
                     ax.set_xlim(left=1, right=self.max_epochs)
                 for spine in ax.spines.values():
-                    spine.set_color('#555555')
+                    spine.set_color('#CBD5E1')
             
             # Chart 1: mAP
-            self.ax1.plot(epochs, map50, color='#00E676', label='mAP50', linewidth=2)
-            self.ax1.plot(epochs, map50_95, color='#00B0FF', label='mAP50-95', linewidth=2)
-            self.ax1.set_title("Mean Average Precision", color='white', pad=10)
-            self.ax1.legend(facecolor='#2E2E2E', labelcolor='white')
-            self.ax1.grid(True, color='#333333', linestyle='--')
+            self.ax1.plot(epochs, map50, color='#10B981', label='mAP50', linewidth=2)
+            self.ax1.plot(epochs, map50_95, color='#3B82F6', label='mAP50-95', linewidth=2)
+            self.ax1.set_title("Mean Average Precision", color='#0F172A', pad=10, fontdict={'family': 'Roboto', 'weight': 'bold'})
+            self.ax1.legend(facecolor='#FFFFFF', labelcolor='#1E293B')
+            self.ax1.grid(True, color='#E2E8F0', linestyle='--')
             
             # Chart 2: Precision & Recall
-            self.ax2.plot(epochs, precision, color='#E040FB', label='Precision', linewidth=2)
-            self.ax2.plot(epochs, recall, color='#FFEA00', label='Recall', linewidth=2)
-            self.ax2.set_title("Precision & Recall", color='white', pad=10)
-            self.ax2.legend(facecolor='#2E2E2E', labelcolor='white')
-            self.ax2.grid(True, color='#333333', linestyle='--')
+            self.ax2.plot(epochs, precision, color='#D946EF', label='Precision', linewidth=2)
+            self.ax2.plot(epochs, recall, color='#EAB308', label='Recall', linewidth=2)
+            self.ax2.set_title("Precision & Recall", color='#0F172A', pad=10, fontdict={'family': 'Roboto', 'weight': 'bold'})
+            self.ax2.legend(facecolor='#FFFFFF', labelcolor='#1E293B')
+            self.ax2.grid(True, color='#E2E8F0', linestyle='--')
             
             # Chart 3a: Train Losses
-            self.ax3_train.plot(epochs, df['train/box_loss'], color='#FF5252', label='Box', linewidth=2)
+            self.ax3_train.plot(epochs, df['train/box_loss'], color='#EF4444', label='Box', linewidth=2)
             if 'train/cls_loss' in df.columns:
-                self.ax3_train.plot(epochs, df['train/cls_loss'], color='#E040FB', label='Cls', linewidth=2)
+                self.ax3_train.plot(epochs, df['train/cls_loss'], color='#D946EF', label='Cls', linewidth=2)
             if 'train/dfl_loss' in df.columns:
-                self.ax3_train.plot(epochs, df['train/dfl_loss'], color='#00E676', label='DFL', linewidth=2)
+                self.ax3_train.plot(epochs, df['train/dfl_loss'], color='#10B981', label='DFL', linewidth=2)
                 
-            self.ax3_train.set_title("Training Losses (Lower is Better)", color='white', pad=10)
-            self.ax3_train.legend(facecolor='#2E2E2E', labelcolor='white', ncol=3, fontsize=8, loc='upper center', bbox_to_anchor=(0.5, 1.0))
-            self.ax3_train.grid(True, color='#333333', linestyle='--')
+            self.ax3_train.set_title("Training Losses", color='#0F172A', pad=10, fontdict={'family': 'Roboto', 'weight': 'bold'})
+            self.ax3_train.legend(facecolor='#FFFFFF', labelcolor='#1E293B', ncol=3, fontsize=8, loc='upper center', bbox_to_anchor=(0.5, 1.0))
+            self.ax3_train.grid(True, color='#E2E8F0', linestyle='--')
             
             # Chart 3b: Val Losses
             if 'val/box_loss' in df.columns:
@@ -502,8 +505,9 @@ class TrainingMonitor(tk.Tk):
             epochs = int(self.ent_epochs.get())
             batch = int(self.ent_batch.get())
             imgsz = int(self.ent_imgsz.get())
+            patience = int(self.ent_patience.get())
         except ValueError:
-            messagebox.showerror("Error", "Please enter valid numbers for epochs, batch size, and image size.")
+            messagebox.showerror("Error", "Please enter valid numbers for epochs, batch size, image size, and patience.")
             return
             
         # Check if already running
@@ -522,7 +526,8 @@ class TrainingMonitor(tk.Tk):
             sys.executable, str(script_path),
             "--epochs", str(epochs),
             "--batch", str(batch),
-            "--imgsz", str(imgsz)
+            "--imgsz", str(imgsz),
+            "--patience", str(patience)
         ]
         
         try:

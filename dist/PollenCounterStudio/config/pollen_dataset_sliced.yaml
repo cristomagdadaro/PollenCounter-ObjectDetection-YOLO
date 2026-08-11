@@ -3,7 +3,7 @@
 # This config points to the 'datasets_sliced' folder which contains 
 # high-resolution patches for Patch-Based Training.
 
-path: ./datasets_sliced
+path: C:/laragon/www/PollenCounter-ObjectDetection-YOLO/datasets_sliced
 train: images/train
 val: images/val
 

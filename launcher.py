@@ -22,6 +22,10 @@ multiprocessing.freeze_support()
 
 # Global Error Logger
 def global_exception_handler(exc_type, exc_value, exc_traceback):
+    if issubclass(exc_type, (KeyboardInterrupt, SystemExit)):
+        sys.__excepthook__(exc_type, exc_value, exc_traceback)
+        return
+        
     workspace = os.environ.get("POLLEN_WORKSPACE", str(Path(__file__).resolve().parent))
     log_file = Path(workspace) / "error_log.txt"
     try:
@@ -96,6 +100,14 @@ if len(sys.argv) > 1:
             runpy.run_module("scripts.augment_preview", run_name="__main__")
         elif tool == "export":
             runpy.run_module("scripts.export", run_name="__main__")
+        elif tool == "view_logs":
+            workspace = os.environ.get("POLLEN_WORKSPACE", str(Path(__file__).resolve().parent))
+            log_file = Path(workspace) / "error_log.txt"
+            if not log_file.exists():
+                with open(log_file, "w", encoding="utf-8") as f:
+                    f.write("--- PollenCounter Studio Error Logs ---\n")
+            os.startfile(str(log_file))
+            sys.exit(0)
         else:
             print(f"Unknown tool: {tool}")
             sys.exit(1)
@@ -111,7 +123,7 @@ if len(sys.argv) > 1:
     sys.exit(0)
 
 # If no arguments, show the Main Menu Launcher
-from src.theme import BG_COLOR, SIDEBAR_BG, ACCENT, TEXT_COLOR
+from src.theme import BG_COLOR, SIDEBAR_BG, ACCENT, TEXT_COLOR, FONT_MAIN, FONT_HEADER, FONT_LABEL
 
 class MainLauncher:
     def __init__(self, root):
@@ -124,9 +136,9 @@ class MainLauncher:
         
     def _build_ui(self):
         # Header
-        header = tk.Frame(self.root, bg=SIDEBAR_BG)
-        header.pack(fill=tk.X, pady=(0, 20))
-        tk.Label(header, text="PollenCounter Studio", font=("Segoe UI", 24, "bold"), bg=SIDEBAR_BG, fg=TEXT_COLOR).pack(pady=20)
+        header = tk.Frame(self.root, bg=BG_COLOR)
+        header.pack(fill=tk.X, pady=(20, 20))
+        tk.Label(header, text="PollenCounter Studio", font=FONT_HEADER, bg=BG_COLOR, fg=TEXT_COLOR).pack()
 
         # Content
         content = tk.Frame(self.root, bg=BG_COLOR)
@@ -135,28 +147,40 @@ class MainLauncher:
         tools = [
             ("Smart Annotator", "Draw bounding boxes and manage dataset", "annotate"),
             ("Batch Inference", "Run models on large folders of images", "inference"),
-            ("Export Model", "Convert models to ONNX or TensorRT for massive speedups", "export"),
-            ("Augment Previewer", "Visually tune training.yaml augmentations", "augment"),
             ("Neural Net Visualizer", "Step-by-step visualizer of YOLO layer activations", "visualize"),
-            ("Training Monitor", "Live real-time Matplotlib graphs of YOLO training", "monitor"),
+            ("Error Logs View", "View application crash and error logs", "view_logs"),
         ]
         
+        # Add developer tools only if not compiled (source mode)
+        if not getattr(sys, 'frozen', False):
+            tools.extend([
+                ("Export Model", "Convert models to ONNX or TensorRT for massive speedups", "export"),
+                ("Augment Previewer", "Visually tune training.yaml augmentations", "augment"),
+                ("Training Monitor", "Live real-time Matplotlib graphs of YOLO training", "monitor"),
+            ])
+        
         for name, desc, cmd in tools:
-            # Card Frame
-            frame = tk.Frame(content, bg="#1E293B", bd=0)
+            # Card Frame (White Surface)
+            frame = tk.Frame(content, bg=SIDEBAR_BG, bd=1, relief="solid")
+            # We use a subtle border for cards. A frame inside a frame can simulate border color,
+            # but setting highlightbackground and highlightthickness works too.
+            frame.config(highlightbackground="#E2E8F0", highlightthickness=1, bd=0)
             frame.pack(fill=tk.X, pady=6)
             
-            # Left side (Icon + Text)
-            info_frame = tk.Frame(frame, bg="#1E293B")
+            # Left side (Text)
+            info_frame = tk.Frame(frame, bg=SIDEBAR_BG)
             info_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=20, pady=12)
             
-            tk.Label(info_frame, text=name, bg="#1E293B", fg="#F8FAFC", font=("Segoe UI", 12, "bold")).pack(anchor=tk.W)
-            tk.Label(info_frame, text=desc, bg="#1E293B", fg="#94A3B8", font=("Segoe UI", 9)).pack(anchor=tk.W, pady=(2, 0))
+            tk.Label(info_frame, text=name, bg=SIDEBAR_BG, fg=TEXT_COLOR, font=FONT_LABEL).pack(anchor=tk.W)
+            tk.Label(info_frame, text=desc, bg=SIDEBAR_BG, fg="#64748B", font=FONT_MAIN).pack(anchor=tk.W, pady=(2, 0))
             
             # Right side (Button)
-            btn = tk.Button(frame, text="Launch", bg="#3B82F6", fg="white", font=("Segoe UI", 10, "bold"), bd=0, cursor="hand2", width=12,
-                            activebackground="#2563EB", activeforeground="white",
-                            command=lambda c=cmd: self._launch_tool(c))
+            btn = tk.Button(
+                frame, text="Launch", bg=ACCENT, fg="white",
+                font=FONT_LABEL, bd=0, padx=20, pady=8,
+                activebackground="#2563EB", cursor="hand2",
+                command=lambda c=cmd: self._launch_tool(c)
+            )
             btn.pack(side=tk.RIGHT, padx=20, pady=12, ipady=4)
             
             # Hover effects

@@ -11,6 +11,7 @@ from pathlib import Path
 import tkinter as tk
 import cv2
 import numpy as np
+import shutil
 from tkinter import ttk, messagebox, filedialog
 from PIL import Image, ImageTk, ImageDraw
 
@@ -253,6 +254,51 @@ class StateManagementMixin:
 
             self._load_image()
             self.status.config(text=f"'{name}' moved to {target_set}")
+
+    def _import_images(self):
+        """Prompt user for images and import them into the current set."""
+        if self.current_set == "All":
+            messagebox.showinfo("Select a Set", "Please select 'Train' or 'Validation' from the dropdown to import images into.")
+            return
+            
+        filetypes = [
+            ("Image files", "*.jpg *.jpeg *.png *.tif *.tiff *.bmp *.webp"),
+            ("All files", "*.*")
+        ]
+        
+        filepaths = filedialog.askopenfilenames(
+            title=f"Select Images to Import into {self.current_set}",
+            filetypes=filetypes
+        )
+        
+        if not filepaths:
+            return
+            
+        target_img_dir, _ = self.set_paths[self.current_set]
+        imported_count = 0
+        
+        for fp in filepaths:
+            src = Path(fp)
+            dest = target_img_dir / src.name
+            if not dest.exists():
+                try:
+                    shutil.copy2(src, dest)
+                    imported_count += 1
+                except Exception as e:
+                    messagebox.showerror("Error", f"Could not copy {src.name}:\n{e}")
+            else:
+                pass # Already exists
+                
+        if imported_count > 0:
+            self._scan_dataset()
+            # Jump to the last newly imported image (end of list)
+            self.current_idx = max(0, len(self.image_paths) - 1)
+            self._load_image()
+            self._update_ui()
+            self.status.config(text=f"Successfully imported {imported_count} images into {self.current_set}")
+            messagebox.showinfo("Import Complete", f"Successfully imported {imported_count} images into {self.current_set}.")
+        else:
+            self.status.config(text="No new images imported.")
 
     # ════════════════════════════════════════════════════════════════
     #  UI UPDATES

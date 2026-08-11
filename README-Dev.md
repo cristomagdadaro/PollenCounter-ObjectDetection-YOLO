@@ -125,7 +125,12 @@ Instead of duplicating code, all scripts now import shared logic from the `src/`
 - **`src.bounding_box`**: Unified `BoundingBox` class and IoU calculations.
 - **`src.model_utils`**: Helpers for auto-discovering the latest weights and collecting images.
 - **`src.settings`**: A robust JSON reader/writer that syncs UI state across all tools (saved in `config/inference_settings.json`).
-- **`src.theme`**: Centralized colors and fonts for all Tkinter GUIs.
+- **`src.theme`**: Centralized colors and fonts for all Tkinter GUIs. Enforces the modern light-mode dashboard style (Roboto font, #F8FAFC background, #FFFFFF cards) ensuring zero emojis and high legibility.
+
+### System Resiliency & Architecture 
+- **Global Error Logger**: Instead of the app silently crashing or throwing a generic fatal error popup to the end user, `launcher.py` employs a Global Error Handler (`sys.excepthook`). All uncaught exceptions are safely routed to `error_log.txt`, allowing easy debugging.
+- **Dynamic Compilation UI**: When compiled via PyInstaller, developer-only tools (Training Monitor, Export Model, Neural Net Visualizer) are dynamically hidden (`sys.frozen`), ensuring end-users only see the production-ready inference and annotation tools.
+- **SAHI Dynamic Backends**: To ensure SAHI compiles correctly via PyInstaller, `build.ps1` explicitly includes hidden imports for dynamic SAHI backends (e.g., `sahi.postprocess._torchvision_backend`).
 
 ### Externalized Training Config
 Over 20 YOLO hyperparameters (learning rate, augmentations, optimizer) have been extracted from `train.py` into **`config/training.yaml`**. You can now tweak training strategies without touching any Python code.

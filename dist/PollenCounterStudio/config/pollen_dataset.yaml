@@ -11,7 +11,7 @@
 # ──────────────────────────────────────────────────────────────────────
 
 # Dataset root relative to this project directory.
-path: ./datasets
+path: ./datasets_sliced
 train: images/train        # training images  (relative to 'path')
 val: images/val            # validation images (relative to 'path')
 
