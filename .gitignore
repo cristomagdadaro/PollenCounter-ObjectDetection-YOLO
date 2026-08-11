@@ -12,3 +12,4 @@ runs/detect/predict**
 build/*
 dist/PollenCounterStudio/_internal/*
 error_log.txt
+dist/PollenCounterStudio.zip
