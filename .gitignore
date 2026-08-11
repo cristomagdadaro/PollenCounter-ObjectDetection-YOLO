@@ -8,3 +8,4 @@ runs/detect/frcnn/*
 # YOLO Cache files
 *.cache
 *.npy
+runs/detect/predict**

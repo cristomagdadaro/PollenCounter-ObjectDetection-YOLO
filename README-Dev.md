@@ -52,6 +52,11 @@ This project has evolved through continuous testing to optimise accuracy. Below 
 - **The Solution:** We created a custom `config/yolo11s-p2.yaml` architecture that adds a high-resolution **P2 layer** (stride 4, or 4x shrinkage). This acts like a magnifying glass for the neural network.
 - **VRAM Warning:** The P2 layer creates massive intermediate feature maps that consume massive amounts of VRAM. An RTX 3090 (24GB) will easily crash if `batch` is set to auto or 24. **For P2 training on 24GB VRAM, `batch` MUST be hardcoded to 16 maximum** (8 or 12 are safer) in `training.yaml`.
 
+### 11. Feature Map Extraction & Visualization
+- **The Challenge:** Object detection models are often treated as black boxes, making it hard to prove or demonstrate *how* the AI finds pollen.
+- **The Solution:** We leverage Ultralytics' native `visualize=True` parameter during prediction (`model.predict(..., visualize=True)`). This intercepts the PyTorch forward hooks and dumps the 2D grid activations for every single internal layer.
+- **Implementation:** `scripts/visualize_features.py` provides a GUI to run this extraction and visually page through the neural network's layers, providing immense educational and debugging value.
+
 ---
 
 ##  Training History & Major Milestones

@@ -135,6 +135,16 @@ python scripts/monitor.py
 - **Status Dashboard:** Instantly see your Max Accuracy and Current Epoch without needing to parse the scrolling terminal output.
 - **Process Management:** Includes a dedicated "Stop Training" button that gracefully hooks into the Windows process tree to safely terminate training if things go wrong.
 
+### 7. Neural Network Visualizer (`visualize.py`)
+
+Launch a specialized GUI to visually demonstrate how the YOLO model processes an image step-by-step.
+
+```bash
+.venv\Scripts\python.exe scripts/visualize.py
+```
+
+This tool intercepts the internal forward pass of the neural network. You can visually step through every convolutional layer and SPPF block to see exactly how the AI extracts edges, shapes, and pollen grains from raw pixels.
+
 ## Project Structure
 
 ```text
